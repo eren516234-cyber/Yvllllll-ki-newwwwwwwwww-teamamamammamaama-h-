@@ -194,8 +194,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
           ),
         ),
         ...history.take(8).map((item) => ResultTile(
-          item: item,
-          onTap: () => _playItem(item),
+          result: item,
         )),
       ]),
     );
@@ -204,7 +203,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
   void _playItem(MuzoItem item) {
     HapticFeedback.lightImpact();
     final audioHandler = ref.read(audioHandlerProvider);
-    audioHandler.playMuzoItem(item);
+    audioHandler.playVideo(item);
   }
 }
 
@@ -477,9 +476,9 @@ class _AlbumCard extends StatelessWidget {
                 fontSize: 13,
               ),
             ),
-            if (item.artists.isNotEmpty)
+            if (item.artists?.isNotEmpty ?? false)
               Text(
-                item.artists.first.name,
+                item.artists!.first.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(

@@ -504,7 +504,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: favorites.take(15).length,
-                itemBuilder: (context, index) => HomeItemWidget(item: favorites[index]),
+                itemBuilder: (context, index) => _MuzoCard(item: favorites[index]),
               ),
             ),
           ]),
@@ -515,42 +515,140 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildYourPlaylistsSection(BuildContext context, WidgetRef ref) {
     final storage = ref.watch(storageServiceProvider);
-    final playlists = storage.playlists;
-    if (playlists.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    return ValueListenableBuilder(
+      valueListenable: storage.playlistsListenable,
+      builder: (context, playlists, _) {
+        if (playlists.isEmpty) return const SizedBox.shrink();
+        return SliverList(
+          delegate: SliverChildListDelegate([
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+              child: Text('Your Playlists',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3)),
+            ),
+            SizedBox(
+              height: 200,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: playlists.length,
+                itemBuilder: (context, index) {
+                  final pl = playlists[index];
+                  final thumb = pl.songs.isNotEmpty && pl.songs.first.thumbnails.isNotEmpty
+                      ? pl.songs.first.thumbnails.first.url
+                      : '';
+                  return _PlaylistCard(name: pl.name, thumbnailUrl: thumb);
+                },
+              ),
+            ),
+          ]),
+        );
+      },
+    );
+  }
+}
 
-    return SliverList(
-      delegate: SliverChildListDelegate([
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-          child: Text('Your Playlists',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.bold, letterSpacing: 0.3)),
-        ),
-        SizedBox(
-          height: 200,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: playlists.length,
-            itemBuilder: (context, index) {
-              final pl = playlists[index];
-              return HomeItemWidget(
-                item: MuzoItem(
-                  videoId: pl.id,
-                  title: pl.name,
-                  thumbnails: pl.items.isNotEmpty
-                      ? [MuzoThumbnail(url: pl.items.first.thumbnails.isNotEmpty ? pl.items.first.thumbnails.first.url : '', width: 0, height: 0)]
-                      : [],
-                  artists: [],
-                  resultType: 'playlist',
-                  isExplicit: false,
+// ─── Compact card for MuzoItem in horizontal lists ────────────────────────
+class _MuzoCard extends StatelessWidget {
+  final MuzoItem item;
+  const _MuzoCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final thumb = item.thumbnails.isNotEmpty ? item.thumbnails.first.url : '';
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        // play via navigator or provider — handled upstream
+      },
+      child: Container(
+        width: 140,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: CachedNetworkImage(
+                imageUrl: thumb,
+                width: 140, height: 140,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(
+                  width: 140, height: 140,
+                  color: Theme.of(context).colorScheme.surface,
+                  child: const Icon(Icons.music_note, color: Colors.white38, size: 40),
                 ),
-              );
-            },
-          ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(item.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w600, fontSize: 13)),
+            if (item.artists?.isNotEmpty ?? false)
+              Text(item.artists!.first.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                    fontSize: 12)),
+          ],
         ),
-      ]),
+      ),
+    );
+  }
+}
+
+// ─── Card for user Playlists ──────────────────────────────────────────────
+class _PlaylistCard extends StatelessWidget {
+  final String name;
+  final String thumbnailUrl;
+  const _PlaylistCard({required this.name, required this.thumbnailUrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: thumbnailUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: thumbnailUrl,
+                    width: 140, height: 140,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _placeholder(context),
+                  )
+                : _placeholder(context),
+          ),
+          const SizedBox(height: 8),
+          Text(name,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(BuildContext context) {
+    return Container(
+      width: 140, height: 140,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const Icon(Icons.queue_music_rounded, color: Colors.white38, size: 40),
     );
   }
 }
