@@ -26,7 +26,7 @@ class HomeSectionWidget extends StatelessWidget {
           ),
         ),
         SizedBox(
-          height: 195, // Reduced from 220 to match 140 width
+          height: 205, // Full, premium rows with rounded covers
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -2,13 +2,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yvl/models/muzo_item.dart';
 import 'package:yvl/services/muzo_api_service.dart';
 import 'package:yvl/services/storage_service.dart';
+import 'package:yvl/providers/home_provider.dart';
 
 final trendingContentProvider = FutureProvider<Map<String, List<MuzoItem>>>((
   ref,
 ) async {
   final storage = ref.read(storageServiceProvider);
   final apiService = MuzoApiService(storage);
-  return apiService.getTrendingContent();
+  try {
+    final content = await apiService.getTrendingContent();
+    if ((content['songs'] ?? const <MuzoItem>[]).isNotEmpty ||
+        (content['playlists'] ?? const <MuzoItem>[]).isNotEmpty) {
+      return content;
+    }
+  } catch (_) {}
+
+  final fallbackItems = buildInstantHomeSections()
+      .expand((section) => section.items)
+      .where((item) => item.videoId != null)
+      .map((item) => MuzoItem(
+            title: item.title,
+            videoId: item.videoId,
+            resultType: 'song',
+            isExplicit: false,
+            artists: item.subtitle == null ? null : [MuzoArtist(name: item.subtitle!, id: null)],
+            thumbnails: [
+              if (item.thumbnailUrl != null)
+                MuzoThumbnail(url: item.thumbnailUrl!, width: 480, height: 360),
+            ],
+          ))
+      .toList();
+  return {'songs': fallbackItems, 'videos': fallbackItems, 'playlists': fallbackItems.reversed.toList()};
 });
 
 final newestSongsProvider = FutureProvider<List<MuzoItem>>((ref) async {
