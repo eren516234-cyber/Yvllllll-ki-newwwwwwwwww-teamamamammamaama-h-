@@ -75,7 +75,6 @@ class _MainLayoutState extends ConsumerState<MainLayout>
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(navigationIndexProvider);
     final isPlayerExpanded = ref.watch(isPlayerExpandedProvider);
-    final audioHandler = ref.read(audioHandlerProvider);
     final globalBottomSheet = ref.watch(globalBottomSheetProvider);
 
     ref.listen(storageServiceProvider, (previous, next) {
@@ -100,24 +99,30 @@ class _MainLayoutState extends ConsumerState<MainLayout>
             // 1. Main content
             widget.child,
 
-            // 2. Loading overlay
+            // 2. Lightweight storage sync hint only. Audio no longer blocks the UI,
+            // so taps, lyrics, and playback controls feel instant.
             ValueListenableBuilder<bool>(
-              valueListenable: audioHandler.isLoadingStream,
-              builder: (context, isAudioLoading, _) {
-                return ValueListenableBuilder<bool>(
-                  valueListenable: ref.watch(storageServiceProvider).isLoadingNotifier,
-                  builder: (context, isStorageLoading, _) {
-                    if (!isAudioLoading && !isStorageLoading) return const SizedBox.shrink();
-                    return Container(
-                      color: const Color(0xFF121212).withValues(alpha: 0.35),
-                      child: const Center(
-                        child: SizedBox(
-                          width: 28, height: 28,
-                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-                        ),
+              valueListenable: ref.watch(storageServiceProvider).isLoadingNotifier,
+              builder: (context, isStorageLoading, _) {
+                return AnimatedPositioned(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  top: isStorageLoading ? MediaQuery.of(context).padding.top + 8 : -56,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                       ),
-                    );
-                  },
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        child: Text('Syncing...', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ),
                 );
               },
             ),
@@ -275,8 +280,9 @@ class _MainLayoutState extends ConsumerState<MainLayout>
         }
       },
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 60,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutBack,
+        width: isSelected ? 68 : 60,
         padding: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),

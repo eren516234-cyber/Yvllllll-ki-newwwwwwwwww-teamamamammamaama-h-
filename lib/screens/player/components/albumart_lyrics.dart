@@ -92,7 +92,18 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
     return SizedBox(
       width: safeSize,
       height: safeSize,
-      child: Container(
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -280) {
+            audioHandler.skipToNext();
+          } else if (velocity > 280) {
+            audioHandler.skipToPrevious();
+          }
+        },
+        child: AnimatedContainer(
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
@@ -161,8 +172,12 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                                       .withValues(alpha: 0.48),
                               child: _isLoadingLyrics
                                   ? Center(
-                                      child: CircularProgressIndicator(
-                                        color: Theme.of(context).colorScheme.onSurface,
+                                      child: Text(
+                                        'Lyrics loading...',
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     )
                                   : _lyrics == null
@@ -258,7 +273,52 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                     ),
                   ),
                 ),
+              if (_showLyrics)
+                Positioned(
+                  top: 14,
+                  right: 14,
+                  child: _GlassLyricButton(
+                    icon: FluentIcons.arrow_sync_20_filled,
+                    label: 'Re-sync',
+                    onTap: () => audioHandler.seek(Duration.zero),
+                  ),
+                ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassLyricButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _GlassLyricButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.18),
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: Theme.of(context).colorScheme.onSurface, size: 16),
+                  const SizedBox(width: 6),
+                  Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800, fontSize: 12)),
+                ],
+              ),
+            ),
           ),
         ),
       ),
