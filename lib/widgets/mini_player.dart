@@ -4,6 +4,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'dart:math' as math;
 
 import 'package:yvl/providers/player_provider.dart';
 import 'package:yvl/screens/player_screen.dart';
@@ -81,6 +82,8 @@ class MiniPlayer extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
+                    const _MiniWaveform(),
+                    const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -259,6 +262,59 @@ class MiniPlayer extends ConsumerWidget {
       },
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+
+class _MiniWaveform extends StatefulWidget {
+  const _MiniWaveform();
+
+  @override
+  State<_MiniWaveform> createState() => _MiniWaveformState();
+}
+
+class _MiniWaveformState extends State<_MiniWaveform>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(5, (i) {
+            final wave = math.sin((_controller.value * math.pi * 2) + i * .72);
+            final height = 10 + (wave + 1) * 7;
+            return Container(
+              width: 3,
+              height: height,
+              margin: const EdgeInsets.symmetric(horizontal: 1.5),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

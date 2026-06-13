@@ -309,7 +309,7 @@ class _AlbumDialerState extends State<_AlbumDialer> {
             width: dialerSize * 0.62,
             height: dialerSize * 0.62,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                 width: 1.5,
@@ -376,7 +376,8 @@ class _AlbumDialerState extends State<_AlbumDialer> {
                                   ]
                                 : [],
                           ),
-                          child: ClipOval(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(isSelected ? 24 : 18),
                             child: Opacity(
                               opacity: (0.3 + visibility * 0.7).clamp(0.3, 1.0),
                               child: CachedNetworkImage(

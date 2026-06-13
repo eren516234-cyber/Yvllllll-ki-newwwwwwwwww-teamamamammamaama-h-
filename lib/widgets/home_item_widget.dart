@@ -19,7 +19,12 @@ class HomeItemWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return GestureDetector(
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.96, end: 1),
+      duration: const Duration(milliseconds: 360),
+      curve: Curves.easeOutCubic,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: GestureDetector(
       onTap: () => _handleTap(context, ref),
       child: Container(
         width: 148,
@@ -31,7 +36,7 @@ class HomeItemWidget extends ConsumerWidget {
               aspectRatio: 1.0,
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withValues(alpha: 0.35),
@@ -42,7 +47,7 @@ class HomeItemWidget extends ConsumerWidget {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(24),
                   child: item.thumbnailUrl != null
                       ? CachedNetworkImage(
                           imageUrl: item.thumbnailUrl!,
@@ -88,7 +93,7 @@ class HomeItemWidget extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 
   void _handleTap(BuildContext context, WidgetRef ref) {

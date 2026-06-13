@@ -17,29 +17,14 @@ class AlbumArtNLyrics extends ConsumerStatefulWidget {
   ConsumerState<AlbumArtNLyrics> createState() => _AlbumArtNLyricsState();
 }
 
-class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
-    with SingleTickerProviderStateMixin {
+class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
   bool _showLyrics = false;
   bool _isLoadingLyrics = false;
   Lyrics? _lyrics;
   String? _lastFetchedTitle;
-  late AnimationController _transitionController;
-  late Animation<double> _fadeAnim;
-
   @override
   void initState() {
     super.initState();
-    _transitionController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _fadeAnim = CurvedAnimation(parent: _transitionController, curve: Curves.easeInOut);
-  }
-
-  @override
-  void dispose() {
-    _transitionController.dispose();
-    super.dispose();
   }
 
   Future<void> _fetchLyrics(MediaItem mediaItem) async {
@@ -87,13 +72,24 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
       });
     });
 
-    final safeSize = widget.playerArtImageSize.clamp(10.0, double.infinity);
+    final safeSize = widget.playerArtImageSize.clamp(10.0, double.infinity).toDouble();
 
     return SizedBox(
       width: safeSize,
       height: safeSize,
-      child: Container(
-        decoration: BoxDecoration(
+      child: GestureDetector(
+        onHorizontalDragEnd: (details) {
+          final velocity = details.primaryVelocity ?? 0;
+          if (velocity < -280) {
+            audioHandler.skipToNext();
+          } else if (velocity > 280) {
+            audioHandler.skipToPrevious();
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(28),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.12),
@@ -107,7 +103,7 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
             ),
           ],
         ),
-        child: ClipRRect(
+          child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
           child: Stack(
             children: [
@@ -149,7 +145,7 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                 child: _showLyrics
                     ? Positioned.fill(
                         key: const ValueKey('lyrics'),
-                        child: ClipRRect(
+                          child: ClipRRect(
                           borderRadius: BorderRadius.circular(28),
                           child: BackdropFilter(
                             filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
@@ -161,8 +157,12 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                                       .withValues(alpha: 0.48),
                               child: _isLoadingLyrics
                                   ? Center(
-                                      child: CircularProgressIndicator(
-                                        color: Theme.of(context).colorScheme.onSurface,
+                                      child: Text(
+                                        'Lyrics loading...',
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     )
                                   : _lyrics == null
@@ -205,7 +205,7 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                 Positioned(
                   bottom: 14,
                   right: 14,
-                  child: ClipRRect(
+                    child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
@@ -258,7 +258,52 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                     ),
                   ),
                 ),
+              if (_showLyrics)
+                Positioned(
+                  top: 14,
+                  right: 14,
+                  child: _GlassLyricButton(
+                    icon: FluentIcons.arrow_sync_20_filled,
+                    label: 'Re-sync',
+                    onTap: () => audioHandler.seek(Duration.zero),
+                  ),
+                ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GlassLyricButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _GlassLyricButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+        child: Material(
+          color: Colors.white.withValues(alpha: 0.18),
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: Theme.of(context).colorScheme.onSurface, size: 16),
+                  const SizedBox(width: 6),
+                  Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800, fontSize: 12)),
+                ],
+              ),
+            ),
           ),
         ),
       ),
