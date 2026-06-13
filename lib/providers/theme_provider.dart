@@ -9,7 +9,7 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:yvl/providers/player_provider.dart';
 import 'package:yvl/utils/app_colors.dart';
 
-const String kDefaultFontFamily = 'Roboto';
+const String kDefaultFontFamily = 'ADLaM Display';
 
 extension ColorWithHSL on Color {
   HSLColor get hsl => HSLColor.fromColor(this);
@@ -100,7 +100,6 @@ class ThemeLogic {
       systemNavigationBarContrastEnforced: true,
     ));
 
-    // Ultra-dark theme — deeper than before
     const Color scaffold = Color(0xFF000000);
     const Color surface = Color(0xFF080808);
     const Color card = Color(0xFF0F0F0F);
@@ -180,7 +179,6 @@ class ThemeLogic {
       systemNavigationBarContrastEnforced: true,
     ));
 
-    // Sky theme — deep navy/teal with animated gradient bg
     const Color scaffold = Color(0xFF050A14);
     const Color surface = Color(0xFF0A1628);
     const Color card = Color(0xFF0D1F35);

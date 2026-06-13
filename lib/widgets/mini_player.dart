@@ -33,12 +33,26 @@ class MiniPlayer extends ConsumerWidget {
             if (navigatorKey.currentContext != null) {
               ref.read(isPlayerExpandedProvider.notifier).state = true;
               await Navigator.of(navigatorKey.currentContext!).push(
-                MaterialPageRoute(
-                  builder: (context) => const ExpandedPlayer(),
+                PageRouteBuilder(
+                  pageBuilder: (_, animation, __) => FadeTransition(
+                    opacity: animation,
+                    child: const ExpandedPlayer(),
+                  ),
+                  transitionDuration: const Duration(milliseconds: 350),
                   fullscreenDialog: true,
                 ),
               );
               ref.read(isPlayerExpandedProvider.notifier).state = false;
+            }
+          },
+          onHorizontalDragEnd: (details) {
+            if (details.primaryVelocity == null) return;
+            if (details.primaryVelocity! < -300) {
+              HapticFeedback.lightImpact();
+              audioHandler.skipToNext();
+            } else if (details.primaryVelocity! > 300) {
+              HapticFeedback.lightImpact();
+              audioHandler.skipToPrevious();
             }
           },
           child: Column(
@@ -49,7 +63,7 @@ class MiniPlayer extends ConsumerWidget {
                 child: Row(
                   children: [
                     const SizedBox(width: 8),
-                    // Album art — circular on sides
+                    // Album art
                     ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: CachedNetworkImage(
@@ -94,46 +108,22 @@ class MiniPlayer extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Favorite Button
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final storage = ref.watch(storageServiceProvider);
-                        return ValueListenableBuilder<List<MuzoItem>>(
-                          valueListenable: storage.favoritesListenable,
-                          builder: (context, favorites, _) {
-                            final isFav = storage.isFavorite(mediaItem.id);
-                            return IconButton(
-                              icon: Icon(
-                                isFav
-                                    ? FluentIcons.heart_24_filled
-                                    : FluentIcons.heart_24_regular,
-                                color: isFav ? Colors.red : Theme.of(context).colorScheme.onSurface,
-                                size: 24,
-                              ),
-                              onPressed: () {
-                                HapticFeedback.lightImpact();
-                                final result = MuzoItem(
-                                  videoId: mediaItem.id,
-                                  title: mediaItem.title,
-                                  thumbnails: [
-                                    MuzoThumbnail(
-                                      url: mediaItem.artUri.toString(),
-                                      width: 0,
-                                      height: 0,
-                                    ),
-                                  ],
-                                  artists: [MuzoArtist(name: mediaItem.artist ?? '', id: '')],
-                                  resultType: isSong ? 'song' : 'video',
-                                  isExplicit: false,
-                                );
-                                storage.toggleFavorite(result);
-                              },
-                            );
-                          },
-                        );
+                    const SizedBox(width: 4),
+                    // Previous button
+                    IconButton(
+                      icon: Icon(
+                        FluentIcons.previous_24_filled,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                        size: 22,
+                      ),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        audioHandler.skipToPrevious();
                       },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     ),
+                    // Play/Pause
                     StreamBuilder<PlayerState>(
                       stream: audioHandler.player.playerStateStream,
                       builder: (context, snapshot) {
@@ -145,7 +135,7 @@ class MiniPlayer extends ConsumerWidget {
 
                         if (isLoading) {
                           return const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 12.0),
+                            padding: EdgeInsets.symmetric(horizontal: 8.0),
                             child: SizedBox(
                               width: 24, height: 24,
                               child: CircularProgressIndicator(strokeWidth: 2.5),
@@ -169,14 +159,71 @@ class MiniPlayer extends ConsumerWidget {
                               audioHandler.resume();
                             }
                           },
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                         );
                       },
                     ),
-                    const SizedBox(width: 8),
+                    // Next button
+                    IconButton(
+                      icon: Icon(
+                        FluentIcons.next_24_filled,
+                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
+                        size: 22,
+                      ),
+                      onPressed: () {
+                        HapticFeedback.lightImpact();
+                        audioHandler.skipToNext();
+                      },
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                    ),
+                    // Favorite Button
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final storage = ref.watch(storageServiceProvider);
+                        return ValueListenableBuilder<List<MuzoItem>>(
+                          valueListenable: storage.favoritesListenable,
+                          builder: (context, favorites, _) {
+                            final isFav = storage.isFavorite(mediaItem.id);
+                            return IconButton(
+                              icon: Icon(
+                                isFav
+                                    ? FluentIcons.heart_24_filled
+                                    : FluentIcons.heart_24_regular,
+                                color: isFav ? Colors.red : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                size: 20,
+                              ),
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                final result = MuzoItem(
+                                  videoId: mediaItem.id,
+                                  title: mediaItem.title,
+                                  thumbnails: [
+                                    MuzoThumbnail(
+                                      url: mediaItem.artUri.toString(),
+                                      width: 0,
+                                      height: 0,
+                                    ),
+                                  ],
+                                  artists: [MuzoArtist(name: mediaItem.artist ?? '', id: '')],
+                                  resultType: isSong ? 'song' : 'video',
+                                  isExplicit: false,
+                                );
+                                storage.toggleFavorite(result);
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(width: 4),
                   ],
                 ),
               ),
-              // Progress bar — thick and bold
+              // Progress bar
               StreamBuilder<Duration>(
                 stream: audioHandler.player.positionStream,
                 builder: (context, snapshot) {

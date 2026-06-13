@@ -17,19 +17,36 @@ class AlbumArtNLyrics extends ConsumerStatefulWidget {
   ConsumerState<AlbumArtNLyrics> createState() => _AlbumArtNLyricsState();
 }
 
-class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
+class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
+    with SingleTickerProviderStateMixin {
   bool _showLyrics = false;
   bool _isLoadingLyrics = false;
   Lyrics? _lyrics;
   String? _lastFetchedTitle;
+  late AnimationController _transitionController;
+  late Animation<double> _fadeAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _transitionController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeAnim = CurvedAnimation(parent: _transitionController, curve: Curves.easeInOut);
+  }
+
+  @override
+  void dispose() {
+    _transitionController.dispose();
+    super.dispose();
+  }
 
   Future<void> _fetchLyrics(MediaItem mediaItem) async {
     if (_lyrics != null && _lastFetchedTitle == mediaItem.title) return;
-    if (_isLoadingLyrics) return; // Prevent concurrent fetches
+    if (_isLoadingLyrics) return;
 
-    setState(() {
-      _isLoadingLyrics = true;
-    });
+    setState(() => _isLoadingLyrics = true);
 
     try {
       final lyrics = await ref
@@ -37,7 +54,6 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
           .fetchLyrics(
             mediaItem.title,
             mediaItem.artist ?? '',
-            // mediaItem.duration may be null before stream loads; fall back to player's actual duration
             mediaItem.duration?.inSeconds ??
                 ref.read(audioHandlerProvider).player.duration?.inSeconds ??
                 0,
@@ -51,9 +67,7 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoadingLyrics = false;
-        });
+        setState(() => _isLoadingLyrics = false);
       }
     }
   }
@@ -63,8 +77,6 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
     final mediaItemAsync = ref.watch(currentMediaItemProvider);
     final audioHandler = ref.watch(audioHandlerProvider);
 
-    // Reset lyrics if song changes (optional, but good UX to clear old lyrics)
-    // Listen for media changes to auto-update lyrics
     ref.listen(currentMediaItemProvider, (previous, next) {
       next.whenData((mediaItem) {
         if (mediaItem != null &&
@@ -82,40 +94,45 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
       height: safeSize,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(28),
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.1),
+            color: Colors.white.withValues(alpha: 0.12),
             width: 1,
           ),
           boxShadow: const [
             BoxShadow(
               color: Colors.black54,
-              blurRadius: 30,
-              offset: Offset(0, 15),
+              blurRadius: 40,
+              offset: Offset(0, 20),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(28),
           child: Stack(
             children: [
+              // Album Art
               mediaItemAsync.when(
                 data: (mediaItem) {
                   if (mediaItem?.artUri == null) {
                     return Container(color: Colors.grey[900]);
                   }
-                  return CachedNetworkImage(
-                    imageUrl: mediaItem!.artUri.toString().replaceAll(
-                      RegExp(r'w\d+-h\d+'),
-                      'w800-h800',
-                    ),
-                    fit: BoxFit.cover,
-                    width: widget.playerArtImageSize,
-                    height: widget.playerArtImageSize,
-                    errorWidget: (context, url, error) => Icon(
-                      Icons.music_note,
-                      size: 50,
-                      color: Theme.of(context).colorScheme.onSurface,
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 500),
+                    child: CachedNetworkImage(
+                      key: ValueKey(mediaItem!.artUri.toString()),
+                      imageUrl: mediaItem.artUri.toString().replaceAll(
+                        RegExp(r'w\d+-h\d+'),
+                        'w800-h800',
+                      ),
+                      fit: BoxFit.cover,
+                      width: widget.playerArtImageSize,
+                      height: widget.playerArtImageSize,
+                      errorWidget: (context, url, error) => Icon(
+                        Icons.music_note,
+                        size: 50,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                   );
                 },
@@ -126,77 +143,78 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
                 ),
               ),
 
-              // Lyrics Overlay
-              if (_showLyrics)
-                Positioned.fill(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 25, sigmaY: 25),
-                      child: Container(
-                        color:
-                            (Theme.of(context).brightness == Brightness.dark
-                                    ? Colors.black
-                                    : Colors.white)
-                                .withValues(alpha: 0.45),
-                        child: _isLoadingLyrics
-                            ? Center(
-                                child: CircularProgressIndicator(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurface,
-                                ),
-                              )
-                            : _lyrics == null
-                            ? Center(
-                                child: Text(
-                                  "No lyrics found",
-                                  style: TextStyle(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface,
-                                  ),
-                                ),
-                              )
-                            : LyricsView(
-                                lyrics: _lyrics!,
-                                onClose: () =>
-                                    setState(() => _showLyrics = false),
-                                positionStream:
-                                    audioHandler.player.positionStream,
-                                totalDuration:
-                                    audioHandler.player.duration ??
-                                    Duration.zero,
-                                isEmbedded: true,
-                                accentColor:
-                                    ref
-                                        .watch(currentPaletteProvider)
-                                        .asData
-                                        ?.value
-                                        ?.darkVibrantColor
-                                        ?.color ??
-                                    Colors.white,
-                              ),
-                      ),
-                    ),
-                  ),
-                ),
+              // Lyrics Overlay with smooth fade
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 400),
+                child: _showLyrics
+                    ? Positioned.fill(
+                        key: const ValueKey('lyrics'),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(28),
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                            child: Container(
+                              color:
+                                  (Theme.of(context).brightness == Brightness.dark
+                                          ? Colors.black
+                                          : Colors.white)
+                                      .withValues(alpha: 0.48),
+                              child: _isLoadingLyrics
+                                  ? Center(
+                                      child: CircularProgressIndicator(
+                                        color: Theme.of(context).colorScheme.onSurface,
+                                      ),
+                                    )
+                                  : _lyrics == null
+                                  ? Center(
+                                      child: Text(
+                                        "No lyrics found",
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.onSurface,
+                                        ),
+                                      ),
+                                    )
+                                  : LyricsView(
+                                      lyrics: _lyrics!,
+                                      onClose: () =>
+                                          setState(() => _showLyrics = false),
+                                      positionStream:
+                                          audioHandler.player.positionStream,
+                                      totalDuration:
+                                          audioHandler.player.duration ??
+                                          Duration.zero,
+                                      isEmbedded: true,
+                                      accentColor:
+                                          ref
+                                              .watch(currentPaletteProvider)
+                                              .asData
+                                              ?.value
+                                              ?.darkVibrantColor
+                                              ?.color ??
+                                          Colors.white,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(key: ValueKey('no-lyrics')),
+              ),
 
-              // Lyrics Button Overlay (Hide if lyrics are shown)
+              // Lyrics Button (hide when lyrics are shown)
               if (!_showLyrics)
                 Positioned(
-                  bottom: 12,
-                  right: 12,
+                  bottom: 14,
+                  right: 14,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: Colors.white.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.1),
+                            color: Colors.white.withValues(alpha: 0.12),
                           ),
                         ),
                         child: Material(
@@ -206,9 +224,7 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
                             onTap: () {
                               final mediaItem = mediaItemAsync.value;
                               if (mediaItem != null) {
-                                setState(() {
-                                  _showLyrics = true;
-                                });
+                                setState(() => _showLyrics = true);
                                 _fetchLyrics(mediaItem);
                               }
                             },
@@ -222,18 +238,15 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics> {
                                 children: [
                                   Icon(
                                     FluentIcons.text_quote_20_filled,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurface,
+                                    color: Theme.of(context).colorScheme.onSurface,
                                     size: 16,
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
                                     "Lyrics",
                                     style: TextStyle(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurface,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                      fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                 ],

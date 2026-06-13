@@ -22,7 +22,6 @@ import 'package:yvl/widgets/floating_sleep_timer.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
-
   const MainLayout({super.key, required this.child});
 
   @override
@@ -50,31 +49,20 @@ class _MainLayoutState extends ConsumerState<MainLayout>
 
   Future<void> _initDeepLinks() async {
     _appLinks = AppLinks();
-    
-    // Check initial link if app was in cold state (minimized)
     try {
       final initialUri = await _appLinks.getInitialAppLink();
-      if (initialUri != null) {
-        _handleDeepLink(initialUri);
-      }
-    } catch (e) {
-      debugPrint('Failed to get initial uri: $e');
-    }
+      if (initialUri != null) _handleDeepLink(initialUri);
+    } catch (_) {}
 
-    // Handle link when app is in warm state (foreground or background)
-    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
-      _handleDeepLink(uri);
-    }, onError: (err) {
-      debugPrint('Deep Link stream error: $err');
-    });
+    _linkSubscription = _appLinks.uriLinkStream.listen(
+      (uri) => _handleDeepLink(uri),
+      onError: (_) {},
+    );
   }
 
   void _handleDeepLink(Uri uri) {
-    debugPrint('Received Deep Link: $uri');
-    // Using the exact logic as ShareService via the audio handler for playback
     _shareService.handleSharedText(context, uri.toString());
   }
-
 
   @override
   void dispose() {
@@ -87,12 +75,9 @@ class _MainLayoutState extends ConsumerState<MainLayout>
   Widget build(BuildContext context) {
     final selectedIndex = ref.watch(navigationIndexProvider);
     final isPlayerExpanded = ref.watch(isPlayerExpandedProvider);
-
     final audioHandler = ref.read(audioHandlerProvider);
-
     final globalBottomSheet = ref.watch(globalBottomSheetProvider);
 
-    // Listen for storage errors
     ref.listen(storageServiceProvider, (previous, next) {
       if (previous?.errorNotifier.value != next.errorNotifier.value &&
           next.errorNotifier.value != null) {
@@ -101,7 +86,6 @@ class _MainLayoutState extends ConsumerState<MainLayout>
       }
     });
 
-    // Close global bottom sheet on tab change
     ref.listen(navigationIndexProvider, (previous, next) {
       if (previous != next) {
         ref.read(globalBottomSheetProvider.notifier).state = null;
@@ -110,28 +94,27 @@ class _MainLayoutState extends ConsumerState<MainLayout>
 
     return GlobalBackground(
       child: Scaffold(
-        backgroundColor:
-            Colors.transparent, // Ensure GlobalBackground is visible
+        backgroundColor: Colors.transparent,
         body: Stack(
           children: [
-            // 1. Main Content (Navigator)
+            // 1. Main content
             widget.child,
 
-            // 2. Loading Overlay (Covers only the main content area)
+            // 2. Loading overlay
             ValueListenableBuilder<bool>(
               valueListenable: audioHandler.isLoadingStream,
               builder: (context, isAudioLoading, _) {
                 return ValueListenableBuilder<bool>(
-                  valueListenable: ref
-                      .watch(storageServiceProvider)
-                      .isLoadingNotifier,
+                  valueListenable: ref.watch(storageServiceProvider).isLoadingNotifier,
                   builder: (context, isStorageLoading, _) {
-                    final isLoading = isAudioLoading || isStorageLoading;
-                    if (!isLoading) return const SizedBox.shrink();
+                    if (!isAudioLoading && !isStorageLoading) return const SizedBox.shrink();
                     return Container(
-                      color: const Color(0xFF121212).withValues(alpha: 0.5),
+                      color: const Color(0xFF121212).withValues(alpha: 0.35),
                       child: const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
+                        child: SizedBox(
+                          width: 28, height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                        ),
                       ),
                     );
                   },
@@ -139,101 +122,74 @@ class _MainLayoutState extends ConsumerState<MainLayout>
               },
             ),
 
-            // 3. Bottom Navigation Bar (Should be above loader)
+            // 3. Bottom Navigation Bar
             Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
+              left: 0, right: 0, bottom: 0,
               child: IgnorePointer(
                 ignoring: isPlayerExpanded,
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: isPlayerExpanded ? 0.0 : 1.0,
                   child: Container(
-                    padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).padding.bottom,
-                    ),
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.6),
-                          Theme.of(context).scaffoldBackgroundColor,
+                          Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.0),
+                          Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.95),
                         ],
                       ),
                     ),
-                    height: 50 + MediaQuery.of(context).padding.bottom,
+                    height: 58 + MediaQuery.of(context).padding.bottom,
                     child: _buildFloatingNavBar(context, ref, selectedIndex),
                   ),
                 ),
               ),
             ),
 
-            // 4. MiniPlayer (Floating above Navbar, ~95% Width)
+            // 4. MiniPlayer
             Positioned(
-              left: 0,
-              right: 0,
-              bottom:
-                  50 +
-                  MediaQuery.of(
-                    context,
-                  ).padding.bottom, // Directly above navbar (50 + safe area)
+              left: 0, right: 0,
+              bottom: 58 + MediaQuery.of(context).padding.bottom,
               child: Align(
                 alignment: Alignment.bottomCenter,
                 child: FractionallySizedBox(
-                  widthFactor:
-                      0.96, // Slightly wider to match Spotify "floating" look close to edges
+                  widthFactor: 0.96,
                   child: Consumer(
                     builder: (context, ref, _) {
-                      final mediaItemAsync = ref.watch(
-                        currentMediaItemProvider,
-                      );
-                      final palette = ref
-                          .watch(currentPaletteProvider)
-                          .asData
-                          ?.value;
-                      // Check if player is expanded to hide miniplayer during transition
-                      final isPlayerExpandedVal = ref.watch(
-                        isPlayerExpandedProvider,
-                      );
-
+                      final mediaItemAsync = ref.watch(currentMediaItemProvider);
+                      final palette = ref.watch(currentPaletteProvider).asData?.value;
+                      final isExpandedVal = ref.watch(isPlayerExpandedProvider);
                       final isDark = Theme.of(context).brightness == Brightness.dark;
-                      Color miniPlayerColor = isDark
-                          ? const Color(0xff404040)
-                          : Colors.white;
+
+                      Color miniPlayerColor = isDark ? const Color(0xff404040) : Colors.white;
                       if (palette != null) {
                         final extracted =
                             palette.darkVibrantColor?.color ??
                             palette.darkMutedColor?.color ??
                             palette.dominantColor?.color ??
                             const Color(0xff404040);
-                        if (isDark) {
-                          // Dark mode: use extracted color (blended with dark)
-                          miniPlayerColor = Color.lerp(const Color(0xff303030), extracted, 0.6)!;
-                        } else {
-                          // Light mode: 50% white + 50% extracted
-                          miniPlayerColor = Color.lerp(Colors.white, extracted, 0.5)!;
-                        }
+                        miniPlayerColor = isDark
+                            ? Color.lerp(const Color(0xff303030), extracted, 0.6)!
+                            : Color.lerp(Colors.white, extracted, 0.5)!;
                       }
 
                       return mediaItemAsync.maybeWhen(
                         data: (mediaItem) {
                           if (mediaItem == null) return const SizedBox.shrink();
                           return IgnorePointer(
-                            ignoring: isPlayerExpandedVal,
+                            ignoring: isExpandedVal,
                             child: AnimatedOpacity(
                               duration: const Duration(milliseconds: 200),
-                              opacity: isPlayerExpandedVal ? 0.0 : 1.0,
+                              opacity: isExpandedVal ? 0.0 : 1.0,
                               child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 500),
                                 curve: Curves.easeInOut,
-                                margin: const EdgeInsets.only(
-                                  bottom: 0,
-                                ), // No gap
                                 decoration: BoxDecoration(
                                   color: miniPlayerColor,
-                                  borderRadius: BorderRadius.circular(28), // Pill-shaped mini player
+                                  borderRadius: BorderRadius.circular(28),
                                 ),
                                 child: const MiniPlayer(),
                               ),
@@ -248,24 +204,20 @@ class _MainLayoutState extends ConsumerState<MainLayout>
               ),
             ),
 
-            // 5. Floating Sleep Timer Overlay
+            // 5. Floating sleep timer
             const FloatingSleepTimer(),
 
-            // 6. Global Bottom Sheet Overlay (Should cover navbar when open)
+            // 6. Global bottom sheet
             if (globalBottomSheet != null)
               Positioned.fill(
                 child: Material(
                   color: Colors.transparent,
                   child: Stack(
                     children: [
-                      // Dimmed Background
                       GestureDetector(
                         onTap: () => ref.read(globalBottomSheetProvider.notifier).state = null,
-                        child: Container(
-                          color: Colors.black.withValues(alpha: 0.4),
-                        ),
+                        child: Container(color: Colors.black.withValues(alpha: 0.4)),
                       ),
-                      // Bottom Sheet Content
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: globalBottomSheet,
@@ -280,58 +232,22 @@ class _MainLayoutState extends ConsumerState<MainLayout>
     );
   }
 
-
-
-
-
-
-  Widget _buildFloatingNavBar(
-    BuildContext context,
-    WidgetRef ref,
-    int selectedIndex,
-  ) {
+  Widget _buildFloatingNavBar(BuildContext context, WidgetRef ref, int selectedIndex) {
     return SizedBox(
-      height: 50,
+      height: 58,
       child: Row(
-        mainAxisAlignment:
-            MainAxisAlignment.spaceAround, // Space Around for even distribution
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildNavItem(
-            context,
-            ref,
-            FluentIcons.home_24_regular,
-            FluentIcons.home_24_filled,
-            "Home",
-            0,
-            selectedIndex,
-          ),
-          _buildNavItem(
-            context,
-            ref,
-            FluentIcons.library_24_regular,
-            FluentIcons.library_24_filled,
-            "Library",
-            1,
-            selectedIndex,
-          ),
-          _buildNavItem(
-            context,
-            ref,
-            FluentIcons.person_24_regular,
-            FluentIcons.person_24_filled,
-            "Channels",
-            2,
-            selectedIndex,
-          ),
-          _buildNavItem(
-            context,
-            ref,
-            FluentIcons.settings_24_regular,
-            FluentIcons.settings_24_filled,
-            "Settings",
-            3,
-            selectedIndex,
-          ),
+          _buildNavItem(context, ref,
+              FluentIcons.home_24_regular, FluentIcons.home_24_filled, "Home", 0, selectedIndex),
+          _buildNavItem(context, ref,
+              FluentIcons.compass_northwest_24_regular, FluentIcons.compass_northwest_24_filled, "Explore", 1, selectedIndex),
+          _buildNavItem(context, ref,
+              FluentIcons.library_24_regular, FluentIcons.library_24_filled, "Library", 2, selectedIndex),
+          _buildNavItem(context, ref,
+              FluentIcons.person_24_regular, FluentIcons.person_24_filled, "Channels", 3, selectedIndex),
+          _buildNavItem(context, ref,
+              FluentIcons.settings_24_regular, FluentIcons.settings_24_filled, "Settings", 4, selectedIndex),
         ],
       ),
     );
@@ -347,46 +263,52 @@ class _MainLayoutState extends ConsumerState<MainLayout>
     int selectedIndex,
   ) {
     final isSelected = selectedIndex == index;
+    final accent = Theme.of(context).colorScheme.primary;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
         HapticFeedback.lightImpact();
-        if (index >= 0 && index <= 3) {
+        if (index >= 0 && index <= 4) {
           ref.read(navigationIndexProvider.notifier).state = index;
           navigatorKey.currentState?.popUntil((route) => route.isFirst);
-        } else if (index == 5) {
-          if (navigatorKey.currentContext != null) {
-            showDialog(
-              context: navigatorKey.currentContext!,
-              barrierDismissible: false,
-              builder: (context) => const SyncProgressDialog(),
-            );
-          }
         }
       },
-      child: SizedBox(
-        width: 64, // Fixed width for touch target
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 60,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isSelected ? accent.withValues(alpha: 0.12) : Colors.transparent,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.max,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isSelected ? iconFilled : iconRegular,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.onSurface
-                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-              size: 26,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
+              child: Icon(
+                isSelected ? iconFilled : iconRegular,
+                key: ValueKey(isSelected),
+                color: isSelected
+                    ? accent
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
+                size: 24,
+              ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
               style: TextStyle(
                 color: isSelected
-                    ? Theme.of(context).colorScheme.onSurface
-                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                fontSize: 10,
+                    ? accent
+                    : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.45),
+                fontSize: 9.5,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
+              child: Text(label, maxLines: 1),
             ),
           ],
         ),
