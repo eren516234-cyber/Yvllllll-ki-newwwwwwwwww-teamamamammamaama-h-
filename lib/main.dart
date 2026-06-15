@@ -2,13 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'package:yvl/screens/home_screen.dart';
+import 'package:yvl/screens/home_shell.dart';
 import 'package:yvl/screens/login_screen.dart';
 import 'package:yvl/services/storage_service.dart';
 import 'package:yvl/services/navigator_key.dart';
 import 'package:yvl/services/notification_service.dart';
-import 'package:yvl/widgets/main_layout.dart';
-import 'package:yvl/widgets/global_background.dart';
 import 'package:yvl/providers/theme_provider.dart';
 import 'package:yvl/providers/settings_provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
@@ -71,33 +69,12 @@ class MyApp extends ConsumerWidget {
           title: 'YVL',
           debugShowCheckedModeBanner: false,
           theme: theme,
-          routes: {
-            '/home': (ctx) => const _HomeWrapper(),
-          },
-          builder: (context, child) {
-            return showLogin
-                ? child!
-                : GlobalBackground(
-                    child: MainLayout(
-                      key: const ValueKey('main_layout_shell'),
-                      child: child!,
-                    ),
-                  );
-          },
-          home: showLogin
-              ? const LoginScreen()
-              : const _HomeWrapper(),
+          // No builder — each destination manages its own layout.
+          // HomeShell wraps HomeScreen with GlobalBackground + MainLayout.
+          // LoginScreen manages its own full-screen rendering.
+          home: showLogin ? const LoginScreen() : const HomeShell(),
         );
       },
     );
-  }
-}
-
-class _HomeWrapper extends StatelessWidget {
-  const _HomeWrapper();
-
-  @override
-  Widget build(BuildContext context) {
-    return const HomeScreen();
   }
 }

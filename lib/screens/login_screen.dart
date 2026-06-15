@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:yvl/screens/home_shell.dart';
 import 'package:yvl/screens/webview_auth_screen.dart';
 import 'package:yvl/services/storage_service.dart';
 
@@ -71,7 +71,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         await storage.setOnboardingComplete();
         if (mounted) _goToHome();
       } else {
-        setState(() { _isLoading = false; _loadingFor = null; });
+        if (mounted) setState(() { _isLoading = false; _loadingFor = null; });
       }
     } catch (e) {
       if (mounted) {
@@ -110,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         await storage.setOnboardingComplete();
         if (mounted) _goToHome();
       } else {
-        setState(() { _isLoading = false; _loadingFor = null; });
+        if (mounted) setState(() { _isLoading = false; _loadingFor = null; });
       }
     } catch (e) {
       if (mounted) {
@@ -121,10 +121,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 
   void _goToHome() {
-    Navigator.of(context).pushReplacementNamed('/home');
+    // Navigate to HomeShell which includes GlobalBackground + MainLayout.
+    // Remove all previous routes so Back doesn't return to LoginScreen.
+    Navigator.of(context).pushAndRemoveUntil(
+      PageRouteBuilder(
+        pageBuilder: (_, animation, __) => FadeTransition(
+          opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+          child: const HomeShell(),
+        ),
+        transitionDuration: const Duration(milliseconds: 500),
+        opaque: true,
+      ),
+      (_) => false,
+    );
   }
 
   void _showError(String msg) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
@@ -142,7 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Animated gradient background
+          // ── Animated gradient background ─────────────────────────────
           AnimatedBuilder(
             animation: _bgController,
             builder: (_, __) {
@@ -152,10 +165,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 height: size.height,
                 decoration: BoxDecoration(
                   gradient: RadialGradient(
-                    center: Alignment(
-                      -0.3 + t * 0.6,
-                      -0.5 + t * 0.3,
-                    ),
+                    center: Alignment(-0.3 + t * 0.6, -0.5 + t * 0.3),
                     radius: 1.4,
                     colors: const [
                       Color(0xFF1A0533),
@@ -168,48 +178,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             },
           ),
 
-          // Glow orbs
+          // ── Glow orbs ─────────────────────────────────────────────────
           Positioned(
-            top: size.height * 0.15,
+            top: size.height * 0.12,
             left: -80,
-            child: _GlowOrb(color: const Color(0xFF6C00FF), size: 260),
+            child: _GlowOrb(color: const Color(0xFF6C00FF), size: 280),
           ),
           Positioned(
-            bottom: size.height * 0.2,
+            bottom: size.height * 0.18,
             right: -60,
-            child: _GlowOrb(color: const Color(0xFF1DB954), size: 200),
+            child: _GlowOrb(color: const Color(0xFF1DB954), size: 210),
           ),
           Positioned(
-            top: size.height * 0.45,
-            right: size.width * 0.1,
-            child: _GlowOrb(color: const Color(0xFF4285F4), size: 150),
+            top: size.height * 0.44,
+            right: size.width * 0.05,
+            child: _GlowOrb(color: const Color(0xFF4285F4), size: 160),
           ),
 
-          // Frosted glass overlay
-          BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
-            child: Container(color: Colors.black.withValues(alpha: 0.15)),
-          ),
+          // ── Dark frosted glass tint ───────────────────────────────────
+          Container(color: Colors.black.withValues(alpha: 0.12)),
 
-          // Main content
+          // ── Main content ──────────────────────────────────────────────
           SafeArea(
             child: Column(
               children: [
                 const Spacer(flex: 2),
 
-                // Logo + App name
+                // Logo + name
                 Column(
                   children: [
                     Container(
-                      width: 88,
-                      height: 88,
+                      width: 90,
+                      height: 90,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF6C00FF).withValues(alpha: 0.4),
-                            blurRadius: 30,
-                            spreadRadius: 5,
+                            color: const Color(0xFF6C00FF).withValues(alpha: 0.45),
+                            blurRadius: 35,
+                            spreadRadius: 6,
                           ),
                         ],
                       ),
@@ -219,33 +226,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                       ),
                     )
                         .animate()
-                        .scale(duration: 600.ms, curve: Curves.elasticOut)
+                        .scale(duration: 650.ms, curve: Curves.elasticOut)
                         .fadeIn(duration: 400.ms),
-                    const SizedBox(height: 20),
+
+                    const SizedBox(height: 22),
+
                     Text(
                       'YVL',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 52,
+                        fontSize: 56,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: -2,
+                        letterSpacing: -2.5,
                         height: 1,
                       ),
                     )
-                        .animate(delay: 200.ms)
+                        .animate(delay: 180.ms)
                         .fadeIn(duration: 500.ms)
                         .slideY(begin: 0.2),
+
                     const SizedBox(height: 10),
+
                     Text(
                       'Premium music, no limits',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
+                        color: Colors.white.withValues(alpha: 0.52),
                         fontSize: 16,
                         fontWeight: FontWeight.w400,
                         letterSpacing: 0.3,
                       ),
                     )
-                        .animate(delay: 350.ms)
+                        .animate(delay: 320.ms)
                         .fadeIn(duration: 500.ms)
                         .slideY(begin: 0.2),
                   ],
@@ -258,22 +269,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 28),
                   child: Column(
                     children: [
-                      // Google button
                       _AuthButton(
                         label: 'Continue with Google',
-                        icon: _GoogleIcon(),
+                        icon: const _GoogleIcon(),
                         color: Colors.white,
                         textColor: const Color(0xFF1A1A1A),
                         isLoading: _loadingFor == 'google',
                         onTap: _isLoading ? null : _handleGoogleLogin,
                       )
-                          .animate(delay: 500.ms)
+                          .animate(delay: 480.ms)
                           .fadeIn(duration: 400.ms)
-                          .slideY(begin: 0.3),
+                          .slideY(begin: 0.25),
 
                       const SizedBox(height: 14),
 
-                      // Spotify button
                       _AuthButton(
                         label: 'Continue with Spotify',
                         icon: const Icon(
@@ -286,16 +295,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         isLoading: _loadingFor == 'spotify',
                         onTap: _isLoading ? null : _handleSpotifyLogin,
                       )
-                          .animate(delay: 620.ms)
+                          .animate(delay: 590.ms)
                           .fadeIn(duration: 400.ms)
-                          .slideY(begin: 0.3),
+                          .slideY(begin: 0.25),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 24),
 
-                // Skip button
+                // Skip
                 GestureDetector(
                   onTap: _isLoading ? null : _handleSkip,
                   child: Padding(
@@ -303,32 +312,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     child: Text(
                       'Skip for now',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.45),
+                        color: Colors.white.withValues(alpha: 0.42),
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         decoration: TextDecoration.underline,
-                        decorationColor: Colors.white.withValues(alpha: 0.25),
+                        decorationColor: Colors.white.withValues(alpha: 0.22),
                       ),
                     ),
                   ),
                 )
-                    .animate(delay: 750.ms)
+                    .animate(delay: 700.ms)
                     .fadeIn(duration: 400.ms),
 
                 const SizedBox(height: 8),
 
-                // Terms note
                 Text(
                   'By continuing, you agree to our Terms of Service',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.22),
+                    color: Colors.white.withValues(alpha: 0.2),
                     fontSize: 11,
                   ),
                 )
-                    .animate(delay: 850.ms)
+                    .animate(delay: 800.ms)
                     .fadeIn(duration: 400.ms),
 
-                const SizedBox(height: 32),
+                const SizedBox(height: 36),
               ],
             ),
           ),
@@ -338,7 +346,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   }
 }
 
-// ─── Glow Orb ────────────────────────────────────────────────────────────────
+// ─── Glow Orb ─────────────────────────────────────────────────────────────────
 class _GlowOrb extends StatelessWidget {
   final Color color;
   final double size;
@@ -353,7 +361,7 @@ class _GlowOrb extends StatelessWidget {
         shape: BoxShape.circle,
         gradient: RadialGradient(
           colors: [
-            color.withValues(alpha: 0.35),
+            color.withValues(alpha: 0.38),
             color.withValues(alpha: 0.0),
           ],
         ),
@@ -362,7 +370,7 @@ class _GlowOrb extends StatelessWidget {
   }
 }
 
-// ─── Auth Button ─────────────────────────────────────────────────────────────
+// ─── Auth Button ──────────────────────────────────────────────────────────────
 class _AuthButton extends StatefulWidget {
   final String label;
   final Widget icon;
@@ -387,7 +395,6 @@ class _AuthButton extends StatefulWidget {
 class _AuthButtonState extends State<_AuthButton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _pressCtrl;
-  late final Animation<double> _scaleAnim;
 
   @override
   void initState() {
@@ -399,7 +406,6 @@ class _AuthButtonState extends State<_AuthButton>
       upperBound: 1.0,
       value: 1.0,
     );
-    _scaleAnim = _pressCtrl;
   }
 
   @override
@@ -413,9 +419,9 @@ class _AuthButtonState extends State<_AuthButton>
     return GestureDetector(
       onTapDown: (_) { if (widget.onTap != null) _pressCtrl.reverse(); },
       onTapUp: (_) { _pressCtrl.forward(); widget.onTap?.call(); },
-      onTapCancel: () { _pressCtrl.forward(); },
+      onTapCancel: () => _pressCtrl.forward(),
       child: ScaleTransition(
-        scale: _scaleAnim,
+        scale: _pressCtrl,
         child: Container(
           height: 56,
           decoration: BoxDecoration(
@@ -423,8 +429,8 @@ class _AuthButtonState extends State<_AuthButton>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: widget.color.withValues(alpha: 0.3),
-                blurRadius: 20,
+                color: widget.color.withValues(alpha: 0.32),
+                blurRadius: 22,
                 offset: const Offset(0, 6),
               ),
             ],
@@ -434,8 +440,8 @@ class _AuthButtonState extends State<_AuthButton>
             children: [
               if (widget.isLoading)
                 SizedBox(
-                  width: 20,
-                  height: 20,
+                  width: 22,
+                  height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
                     color: widget.textColor,
@@ -462,8 +468,10 @@ class _AuthButtonState extends State<_AuthButton>
   }
 }
 
-// ─── Google Icon ─────────────────────────────────────────────────────────────
+// ─── Google Icon ──────────────────────────────────────────────────────────────
 class _GoogleIcon extends StatelessWidget {
+  const _GoogleIcon();
+
   @override
   Widget build(BuildContext context) {
     return SizedBox(
@@ -477,35 +485,40 @@ class _GoogleIcon extends StatelessWidget {
 class _GooglePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
-    final center = rect.center;
     final r = size.width / 2;
+    final cx = r, cy = r;
+    final rect = Rect.fromCenter(center: Offset(cx, cy), width: size.width, height: size.height);
 
-    // Draw a simplified Google G
-    final paint = Paint()..style = PaintingStyle.fill;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.2
+      ..strokeCap = StrokeCap.round;
 
-    // Blue arc
+    // Blue (top-left arc)
     paint.color = const Color(0xFF4285F4);
-    canvas.drawArc(rect, -1.57, 3.14, false, paint..style = PaintingStyle.stroke..strokeWidth = 3.5);
+    canvas.drawArc(rect, -2.36, 2.36, false, paint);
 
-    // Red arc
-    paint.color = const Color(0xFFEA4335);
-    canvas.drawArc(rect, 1.57, 1.57, false, paint);
-
-    // Yellow arc
-    paint.color = const Color(0xFFFBBC05);
-    canvas.drawArc(rect, 3.14, 0.79, false, paint);
-
-    // Green arc
+    // Green (bottom-right arc)
     paint.color = const Color(0xFF34A853);
-    canvas.drawArc(rect, 3.93, 0.79, false, paint);
+    canvas.drawArc(rect, 0.0, 1.57, false, paint);
 
-    // White horizontal bar for G
+    // Yellow (bottom-left)
+    paint.color = const Color(0xFFFBBC05);
+    canvas.drawArc(rect, 1.57, 0.79, false, paint);
+
+    // Red (top-right)
+    paint.color = const Color(0xFFEA4335);
+    canvas.drawArc(rect, 2.36, 0.79, false, paint);
+
+    // Horizontal bar of G
     paint
       ..style = PaintingStyle.fill
       ..color = const Color(0xFF4285F4);
-    canvas.drawRect(
-      Rect.fromLTWH(center.dx, center.dy - 2, r, 4),
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx, cy - 2.2, r - 1, 4.4),
+        const Radius.circular(2),
+      ),
       paint,
     );
   }
