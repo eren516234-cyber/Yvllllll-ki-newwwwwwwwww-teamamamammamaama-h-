@@ -18,21 +18,40 @@ class WebViewAuthScreen extends StatefulWidget {
 class _WebViewAuthScreenState extends State<WebViewAuthScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
-  String _statusText = 'Loading...';
   bool _didComplete = false;
 
-  // ── Spotify OAuth config ─────────────────────────────────────────────────
-  // Public Spotify OAuth — no secret needed on client side
-  static const String _spotifyClientId = 'spotify_client_id_here'; // TODO: Set your Spotify app client ID
-  static const String _spotifyRedirectUri = 'yvlapp://callback';
-  static const String _spotifyScope =
-      'user-read-private user-read-email playlist-read-private playlist-read-collaborative user-library-read user-top-read';
+  // Spotify — implicit grant (no backend secret needed)
+  // Replace with your Spotify Developer Dashboard client_id:
+  // https://developer.spotify.com/dashboard
+  static const _spotifyClientId = 'YOUR_SPOTIFY_CLIENT_ID';
+  // This redirect URI must be whitelisted in your Spotify app settings:
+  static const _spotifyRedirectUri = 'https://veltrixcode-ytify.hf.space/callback/spotify';
+  static const _spotifyScope =
+      'user-read-private user-read-email playlist-read-private '
+      'playlist-read-collaborative user-library-read user-top-read';
 
-  // ── Google OAuth config ──────────────────────────────────────────────────
-  static const String _googleClientId =
-      'google_client_id_here.apps.googleusercontent.com'; // TODO: Set your Google OAuth client ID
-  static const String _googleRedirectUri = 'com.yourapp.yvl:/oauth2redirect';
-  static const String _googleScope = 'email profile openid';
+  String get _authUrl {
+    if (widget.provider == AuthProvider.spotify) {
+      final p = {
+        'client_id': _spotifyClientId,
+        'response_type': 'token',
+        'redirect_uri': _spotifyRedirectUri,
+        'scope': _spotifyScope,
+        'show_dialog': 'true',
+      };
+      return Uri.https('accounts.spotify.com', '/authorize', p).toString();
+    } else {
+      // Google — use backend-managed credentials
+      final p = {
+        'client_id': '764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com',
+        'redirect_uri': 'https://veltrixcode-ytify.hf.space/auth/google/callback',
+        'response_type': 'code',
+        'scope': 'email profile openid',
+        'prompt': 'select_account',
+      };
+      return Uri.https('accounts.google.com', '/o/oauth2/auth', p).toString();
+    }
+  }
 
   @override
   void initState() {
@@ -40,270 +59,158 @@ class _WebViewAuthScreenState extends State<WebViewAuthScreen> {
     _initWebView();
   }
 
-  String get _authUrl {
-    if (widget.provider == AuthProvider.spotify) {
-      final params = {
-        'client_id': _spotifyClientId,
-        'response_type': 'token',
-        'redirect_uri': _spotifyRedirectUri,
-        'scope': _spotifyScope,
-        'show_dialog': 'true',
-      };
-      return Uri.https('accounts.spotify.com', '/authorize', params).toString();
-    } else {
-      // Google OAuth
-      final params = {
-        'client_id': _googleClientId,
-        'redirect_uri': _googleRedirectUri,
-        'response_type': 'code',
-        'scope': _googleScope,
-        'prompt': 'select_account',
-      };
-      return Uri.https('accounts.google.com', '/o/oauth2/auth', params).toString();
-    }
-  }
-
   void _initWebView() {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setUserAgent(
-        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
-        '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) {
-            if (mounted) setState(() { _isLoading = true; _statusText = 'Loading...'; });
-            _handleUrl(url);
-          },
-          onPageFinished: (url) {
-            if (mounted) setState(() => _isLoading = false);
-          },
-          onNavigationRequest: (request) {
-            final url = request.url;
-            if (_handleUrl(url)) {
-              return NavigationDecision.prevent;
-            }
-            return NavigationDecision.navigate;
-          },
-          onWebResourceError: (error) {
-            if (mounted) setState(() { _isLoading = false; _statusText = 'Error loading page'; });
-          },
-        ),
-      )
+          'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36')
+      ..setNavigationDelegate(NavigationDelegate(
+        onPageStarted: (url) {
+          if (mounted) setState(() => _isLoading = true);
+          _handleUrl(url);
+        },
+        onPageFinished: (url) {
+          if (mounted) setState(() => _isLoading = false);
+          // Also pull href from JS (catches fragment-based redirects)
+          _controller
+              .runJavaScriptReturningResult('window.location.href')
+              .then((v) => _handleUrl(v.toString().replaceAll('"', '')))
+              .catchError((_) {});
+        },
+        onNavigationRequest: (req) {
+          if (_handleUrl(req.url)) return NavigationDecision.prevent;
+          return NavigationDecision.navigate;
+        },
+        onWebResourceError: (_) {
+          if (mounted) setState(() => _isLoading = false);
+          _controller.currentUrl().then((u) { if (u != null) _handleUrl(u); }).catchError((_) {});
+        },
+      ))
       ..loadRequest(Uri.parse(_authUrl));
   }
 
-  /// Returns true if the URL was handled (auth complete), false otherwise.
   bool _handleUrl(String url) {
     if (_didComplete) return false;
-
-    if (widget.provider == AuthProvider.spotify) {
-      return _handleSpotifyCallback(url);
-    } else {
-      return _handleGoogleCallback(url);
-    }
+    return widget.provider == AuthProvider.spotify
+        ? _onSpotifyUrl(url)
+        : _onGoogleUrl(url);
   }
 
-  bool _handleSpotifyCallback(String url) {
-    // Spotify OAuth implicit flow returns token in fragment
-    // e.g. yvlapp://callback#access_token=...&token_type=Bearer&...
-    if (!url.contains('access_token=') && !url.contains('callback')) return false;
-
+  bool _onSpotifyUrl(String url) {
+    if (!url.contains('access_token')) return false;
     try {
-      Uri uri;
-      try {
-        uri = Uri.parse(url);
-      } catch (_) {
-        return false;
-      }
-
-      // Fragment-based token
       String? token;
-      final fragment = uri.fragment;
-      if (fragment.isNotEmpty) {
-        final params = Uri.splitQueryString(fragment);
-        token = params['access_token'];
+      if (url.contains('#')) {
+        final frag = url.split('#').last;
+        token = Uri.splitQueryString(frag)['access_token'];
       }
-
-      // Query param-based (some implementations)
-      token ??= uri.queryParameters['access_token'];
-
+      token ??= Uri.tryParse(url)?.queryParameters['access_token'];
       if (token != null && token.isNotEmpty) {
         _didComplete = true;
-        setState(() { _statusText = 'Logging in...'; _isLoading = true; });
-        _completeSpotifyLogin(token);
+        _finishSpotify(token);
         return true;
       }
-
-      // Error case
-      final error = uri.queryParameters['error'];
-      if (error != null) {
+      final err = Uri.tryParse(url)?.queryParameters['error'];
+      if (err != null) {
         _didComplete = true;
         if (mounted) Navigator.of(context).pop(null);
         return true;
       }
-    } catch (e) {
-      debugPrint('Spotify callback error: $e');
-    }
+    } catch (_) {}
     return false;
   }
 
-  bool _handleGoogleCallback(String url) {
-    // Google OAuth code flow
-    if (!url.contains('oauth2redirect') && !url.contains('code=')) return false;
-
+  bool _onGoogleUrl(String url) {
+    if (!url.contains('code=') && !url.contains('oauth2callback')) return false;
     try {
-      final uri = Uri.parse(url);
-      final code = uri.queryParameters['code'];
-      final error = uri.queryParameters['error'];
-
-      if (error != null) {
+      final uri = Uri.tryParse(url);
+      final code = uri?.queryParameters['code'];
+      final err = uri?.queryParameters['error'];
+      if (err != null) {
         _didComplete = true;
         if (mounted) Navigator.of(context).pop(null);
         return true;
       }
-
       if (code != null && code.isNotEmpty) {
         _didComplete = true;
-        setState(() { _statusText = 'Signing in with Google...'; _isLoading = true; });
-        _completeGoogleLogin(code);
+        _finishGoogle(code);
         return true;
       }
-    } catch (e) {
-      debugPrint('Google callback error: $e');
-    }
+    } catch (_) {}
     return false;
   }
 
-  Future<void> _completeSpotifyLogin(String token) async {
+  Future<void> _finishSpotify(String token) async {
+    if (mounted) setState(() => _isLoading = true);
     try {
-      // Fetch Spotify user profile
-      final resp = await http.get(
-        Uri.parse('https://api.spotify.com/v1/me'),
-        headers: {'Authorization': 'Bearer $token'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        final name = data['display_name'] as String? ?? 'Spotify User';
-        final email = data['email'] as String? ?? '';
-        final images = data['images'] as List<dynamic>?;
-        final avatar = images != null && images.isNotEmpty
-            ? (images.first['url'] as String?)
-            : null;
-
+      final res = await http.get(Uri.parse('https://api.spotify.com/v1/me'),
+          headers: {'Authorization': 'Bearer $token'}).timeout(const Duration(seconds: 10));
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body) as Map<String, dynamic>;
+        final images = d['images'] as List?;
         if (mounted) {
           Navigator.of(context).pop({
             'token': token,
-            'name': name,
-            'email': email,
-            'avatar': avatar,
+            'name': d['display_name'] as String? ?? 'Spotify User',
+            'email': d['email'] as String? ?? '',
+            'avatar': images?.isNotEmpty == true ? images!.first['url'] as String? : null,
             'provider': 'spotify',
           });
         }
-      } else {
-        // Return token only — profile fetch failed
-        if (mounted) Navigator.of(context).pop({'token': token, 'provider': 'spotify'});
+        return;
       }
-    } catch (e) {
-      debugPrint('Spotify profile fetch error: $e');
-      if (mounted) Navigator.of(context).pop({'token': token, 'provider': 'spotify'});
-    }
+    } catch (_) {}
+    if (mounted) Navigator.of(context).pop({'token': token, 'provider': 'spotify'});
   }
 
-  Future<void> _completeGoogleLogin(String code) async {
-    // Exchange code via our backend
+  Future<void> _finishGoogle(String code) async {
+    if (mounted) setState(() => _isLoading = true);
     try {
-      final resp = await http.post(
+      final res = await http.post(
         Uri.parse('https://veltrixcode-ytify.hf.space/api/auth/google/callback'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'code': code}),
       ).timeout(const Duration(seconds: 15));
-
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        final token = data['token'] as String?;
-        final user = data['user'] as Map<String, dynamic>?;
-
+      if (res.statusCode == 200) {
+        final d = jsonDecode(res.body) as Map<String, dynamic>;
         if (mounted) {
           Navigator.of(context).pop({
-            'token': token,
-            'name': user?['username'] ?? user?['name'] ?? 'Google User',
-            'email': user?['email'] ?? '',
-            'avatar': user?['avatar'],
+            'token': d['token'] as String?,
+            'name': (d['user'] as Map?)?['name'] ?? (d['user'] as Map?)?['username'] ?? 'Google User',
+            'email': (d['user'] as Map?)?['email'] ?? '',
+            'avatar': (d['user'] as Map?)?['avatar'],
             'provider': 'google',
           });
         }
-      } else {
-        // Fallback: just mark as signed in without backend token
-        if (mounted) Navigator.of(context).pop({'provider': 'google'});
+        return;
       }
-    } catch (e) {
-      debugPrint('Google token exchange error: $e');
-      if (mounted) Navigator.of(context).pop({'provider': 'google'});
-    }
+    } catch (_) {}
+    if (mounted) Navigator.of(context).pop({'provider': 'google'});
   }
 
   @override
   Widget build(BuildContext context) {
     final isSpotify = widget.provider == AuthProvider.spotify;
-    final accentColor = isSpotify ? const Color(0xFF1DB954) : const Color(0xFF4285F4);
-    final title = isSpotify ? 'Sign in to Spotify' : 'Sign in with Google';
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF111111),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(null),
+    final accent = isSpotify ? const Color(0xFF1DB954) : const Color(0xFF4285F4);
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light),
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF111111),
+          elevation: 0,
+          leading: IconButton(icon: const Icon(Icons.close_rounded, color: Colors.white), onPressed: () => Navigator.of(context).pop(null)),
+          title: Text(isSpotify ? 'Sign in to Spotify' : 'Sign in with Google',
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+          centerTitle: true,
+          bottom: _isLoading
+              ? PreferredSize(preferredSize: const Size.fromHeight(3),
+                  child: LinearProgressIndicator(backgroundColor: Colors.transparent, color: accent))
+              : null,
+          systemOverlayStyle: const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.light),
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-        bottom: _isLoading
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(3),
-                child: LinearProgressIndicator(
-                  backgroundColor: Colors.transparent,
-                  color: accentColor,
-                ),
-              )
-            : null,
-        systemOverlayStyle: const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-        ),
-      ),
-      body: Stack(
-        children: [
-          WebViewWidget(controller: _controller),
-          if (_isLoading && _statusText == 'Logging in...' || _statusText == 'Signing in with Google...')
-            Container(
-              color: Colors.black87,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: accentColor),
-                    const SizedBox(height: 20),
-                    Text(
-                      _statusText,
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
+        body: WebViewWidget(controller: _controller),
       ),
     );
   }

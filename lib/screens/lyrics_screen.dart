@@ -19,16 +19,14 @@ class _Line {
   const _Line({required this.time, required this.text});
 }
 
+/// Parses LRC-formatted synced lyrics. Returns empty list if no timestamps found.
+/// For plain lyrics (no timestamps), use [parsePlainLyrics] instead.
 List<_Line> parseLrc(String raw) {
   final lines = <_Line>[];
   final re = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)');
   for (final row in raw.split('\n')) {
     final m = re.firstMatch(row.trim());
-    if (m == null) {
-      if (lines.isEmpty && row.trim().isNotEmpty)
-        lines.add(_Line(time: Duration.zero, text: row.trim()));
-      continue;
-    }
+    if (m == null) continue; // skip — don't add plain lines here
     final txt = m.group(4)!.trim();
     if (txt.isEmpty) continue;
     final ms3 = m.group(3)!.padRight(3, '0').substring(0, 3);
@@ -42,6 +40,15 @@ List<_Line> parseLrc(String raw) {
     ));
   }
   return lines;
+}
+
+/// Splits plain (non-timestamped) lyrics into displayable lines.
+List<String> parsePlainLyrics(String raw) {
+  return raw
+      .split('\n')
+      .map((l) => l.trim())
+      .where((l) => l.isNotEmpty)
+      .toList();
 }
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -138,11 +145,32 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
   }
 
   Widget _buildModeView(dynamic handler, Color accent) {
-    final lrcSrc = _lyrics!.syncedLyrics.isNotEmpty
-        ? _lyrics!.syncedLyrics
-        : _lyrics!.plainLyrics;
-    final lines = parseLrc(lrcSrc);
+    // Instrumental — no lyrics at all
+    if (_lyrics!.instrumental) {
+      return const _InstrumentalView();
+    }
+
+    // Prefer synced lyrics; fall back to plain if empty
+    final hasSynced = _lyrics!.syncedLyrics.isNotEmpty;
     final pos = handler.player.positionStream as Stream<Duration>;
+
+    if (!hasSynced) {
+      // Plain lyrics (no timestamps) — parse and show as scrollable list
+      final plainLines = parsePlainLyrics(
+        _lyrics!.plainLyrics.isNotEmpty ? _lyrics!.plainLyrics : '',
+      );
+      if (plainLines.isEmpty) return _NotFound(onRetry: _fetchLyrics);
+      return _PlainLyricsView(lines: plainLines, accent: accent);
+    }
+
+    // Synced lyrics
+    final lines = parseLrc(_lyrics!.syncedLyrics);
+    if (lines.isEmpty) {
+      // Fallback: render syncedLyrics as plain if parseLrc found no timestamps
+      final fallback = parsePlainLyrics(_lyrics!.syncedLyrics);
+      if (fallback.isEmpty) return _NotFound(onRetry: _fetchLyrics);
+      return _PlainLyricsView(lines: fallback, accent: accent);
+    }
 
     switch (_mode) {
       case LyricsMode.classic:
@@ -377,6 +405,63 @@ class _NotFound extends StatelessWidget {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MODE 1 — CLASSIC
+// ─── Plain Lyrics View (no timestamps) ───────────────────────────────────────
+/// Shown when only plain (non-LRC) lyrics are available.
+class _PlainLyricsView extends StatelessWidget {
+  final List<String> lines;
+  final Color accent;
+  const _PlainLyricsView({required this.lines, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 48),
+      itemCount: lines.length,
+      itemBuilder: (ctx, i) {
+        final line = lines[i];
+        // Section headers like [Chorus], [Verse 1]
+        final isSection = line.startsWith('[') && line.endsWith(']');
+        return Padding(
+          padding: EdgeInsets.symmetric(vertical: isSection ? 14 : 7),
+          child: Text(
+            line,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isSection ? 13 : 17,
+              fontWeight: isSection ? FontWeight.w600 : FontWeight.w500,
+              color: isSection
+                  ? accent.withValues(alpha: 0.7)
+                  : Colors.white.withValues(alpha: 0.82),
+              letterSpacing: isSection ? 1.5 : 0,
+              height: 1.65,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Instrumental View ────────────────────────────────────────────────────────
+class _InstrumentalView extends StatelessWidget {
+  const _InstrumentalView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Icon(Icons.piano_rounded, color: Colors.white24, size: 72),
+        const SizedBox(height: 20),
+        const Text('🎼 Instrumental', style: TextStyle(
+            color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 8),
+        Text('This track has no lyrics',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.45), fontSize: 14)),
+      ]),
+    );
+  }
+}
+
 // Clean vertical list. Active line: large white. Inactive: dimmer + smaller.
 // Smooth auto-scroll. Zero lag: no per-frame setState on full tree.
 // ═══════════════════════════════════════════════════════════════════════════════

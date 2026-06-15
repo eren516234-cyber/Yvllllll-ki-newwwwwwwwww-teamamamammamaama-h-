@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yvl/screens/home_shell.dart';
+import 'package:yvl/screens/post_login_import_screen.dart';
 import 'package:yvl/screens/webview_auth_screen.dart';
 import 'package:yvl/services/storage_service.dart';
 
@@ -71,12 +72,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         await storage.setOnboardingComplete();
         if (mounted) _goToHome();
       } else {
-        if (mounted) setState(() { _isLoading = false; _loadingFor = null; });
+        // User closed WebView — go home as guest
+        if (mounted) {
+          final storage = ref.read(storageServiceProvider);
+          await storage.setOnboardingComplete();
+          _goToHome();
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() { _isLoading = false; _loadingFor = null; });
-        _showError('Google login failed. Please try again.');
+        final storage = ref.read(storageServiceProvider);
+        await storage.setOnboardingComplete();
+        _goToHome();
       }
     }
   }
@@ -99,7 +107,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
       if (result != null && mounted) {
         final storage = ref.read(storageServiceProvider);
-        if (result['token'] != null) {
+        final hasToken = result['token'] != null && (result['token'] as String).isNotEmpty;
+        if (hasToken) {
           await storage.setSpotifyToken(result['token']!);
         }
         await storage.setUserInfo(
@@ -108,14 +117,39 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           avatarUrl: result['avatar'],
         );
         await storage.setOnboardingComplete();
-        if (mounted) _goToHome();
+        if (mounted) {
+          if (hasToken) {
+            // Has Spotify token → show import screen
+            Navigator.of(context).pushAndRemoveUntil(
+              PageRouteBuilder(
+                pageBuilder: (_, animation, __) => FadeTransition(
+                  opacity: CurvedAnimation(parent: animation, curve: Curves.easeIn),
+                  child: const PostLoginImportScreen(providerName: 'spotify'),
+                ),
+                transitionDuration: const Duration(milliseconds: 400),
+                opaque: true,
+              ),
+              (_) => false,
+            );
+          } else {
+            _goToHome();
+          }
+        }
       } else {
-        if (mounted) setState(() { _isLoading = false; _loadingFor = null; });
+        // User closed WebView without completing auth — go home as guest
+        if (mounted) {
+          final storage = ref.read(storageServiceProvider);
+          await storage.setOnboardingComplete();
+          _goToHome();
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() { _isLoading = false; _loadingFor = null; });
-        _showError('Spotify login failed. Please try again.');
+        // On error still let user into the app
+        final storage = ref.read(storageServiceProvider);
+        await storage.setOnboardingComplete();
+        _goToHome();
       }
     }
   }
