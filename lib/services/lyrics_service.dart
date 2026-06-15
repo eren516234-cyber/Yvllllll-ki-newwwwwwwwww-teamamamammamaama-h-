@@ -218,8 +218,8 @@ class LyricsService {
           }
         }
 
-        // Only return if within acceptable range (e.g. 5 seconds), otherwise it might be wrong song
-        if (minDiff <= 5 && bestMatch != null) {
+        // Only return if within acceptable range (30s), or skip check when duration unknown
+        if ((duration == 0 || minDiff <= 30) && bestMatch != null) {
           debugPrint(
             'LyricsService: Found best match "${bestMatch.trackName}" with diff ${minDiff}s',
           );
