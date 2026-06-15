@@ -39,8 +39,6 @@ class ExploreScreen extends ConsumerStatefulWidget {
 }
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
-  String _selectedGenre = '';
-
   void _playItem(MuzoItem item) {
     if (item.videoId == null) return;
     HapticFeedback.lightImpact();

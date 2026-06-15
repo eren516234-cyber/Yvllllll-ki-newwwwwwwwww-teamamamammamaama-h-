@@ -6,7 +6,6 @@ import 'package:yvl/services/storage_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:yvl/screens/settings/components/font_picker_dialog.dart';
 import 'package:yvl/providers/player_provider.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:yvl/screens/about_screen.dart';
 import 'package:yvl/screens/connect_screen.dart';
 
