@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,28 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:yvl/models/muzo_item.dart';
 import 'package:yvl/providers/explore_provider.dart';
 import 'package:yvl/providers/player_provider.dart';
-import 'package:yvl/screens/search_screen.dart';
-
-const _thumbBase = 'https://i.ytimg.com/vi';
-
-class _GenreTile {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final String query;
-  const _GenreTile(this.label, this.icon, this.color, this.query);
-}
-
-const _genres = [
-  _GenreTile('Pop', FluentIcons.star_24_filled, Color(0xFFE91E63), 'top pop songs 2024'),
-  _GenreTile('Hip-Hop', FluentIcons.mic_24_filled, Color(0xFF9C27B0), 'best hip hop 2024'),
-  _GenreTile('R&B', FluentIcons.heart_24_filled, Color(0xFFFF5722), 'best rnb songs 2024'),
-  _GenreTile('Rock', FluentIcons.music_note_2_24_filled, Color(0xFF607D8B), 'classic rock hits'),
-  _GenreTile('Electronic', FluentIcons.headphones_24_filled, Color(0xFF00BCD4), 'electronic dance music'),
-  _GenreTile('Country', FluentIcons.flag_24_filled, Color(0xFF795548), 'country music hits'),
-  _GenreTile('Jazz', FluentIcons.music_note_1_24_filled, Color(0xFF3F51B5), 'smooth jazz music'),
-  _GenreTile('Classical', FluentIcons.app_store_24_filled, Color(0xFF009688), 'classical music'),
-];
+import 'package:yvl/services/storage_service.dart';
 
 class ExploreScreen extends ConsumerStatefulWidget {
   const ExploreScreen({super.key});
@@ -39,190 +19,92 @@ class ExploreScreen extends ConsumerStatefulWidget {
 }
 
 class _ExploreScreenState extends ConsumerState<ExploreScreen> {
+  final FixedExtentScrollController _wheelController = FixedExtentScrollController(initialItem: 0);
+  int _selectedIndex = 0;
+
+  @override
+  void dispose() {
+    _wheelController.dispose();
+    super.dispose();
+  }
+
   void _playItem(MuzoItem item) {
     if (item.videoId == null) return;
     HapticFeedback.lightImpact();
-    ref.read(audioHandlerProvider).playVideo(item);
-  }
-
-  void _searchGenre(BuildContext context, String query) {
-    HapticFeedback.lightImpact();
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const SearchScreen()),
-    );
+    final audioHandler = ref.read(audioHandlerProvider);
+    audioHandler.playVideo(item);
   }
 
   @override
   Widget build(BuildContext context) {
     final trendingAsync = ref.watch(trendingContentProvider);
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          slivers: [
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             // ── Header ──────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      'Explore',
-                      style: theme.textTheme.titleLarge?.copyWith(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -1,
-                      ),
-                    ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1),
-                    const Spacer(),
-                    IconButton(
-                      icon: Icon(FluentIcons.arrow_clockwise_24_regular, color: theme.colorScheme.onSurface),
-                      onPressed: () {
-                        HapticFeedback.lightImpact();
-                        ref.invalidate(trendingContentProvider);
-                      },
-                      tooltip: 'Refresh',
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 16, 0),
+              child: Row(
+                children: [
+                  Text(
+                    'Explore',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1,
                     ),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Browse Genres ─────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                child: Text(
-                  'Browse Genres',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 18,
-                    letterSpacing: -0.3,
+                  ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1),
+                  const Spacer(),
+                  IconButton(
+                    icon: Icon(FluentIcons.more_horizontal_24_regular, color: theme.colorScheme.onSurface),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      ref.invalidate(trendingContentProvider);
+                    },
                   ),
-                ),
+                ],
               ),
             ),
 
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 2.6,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (ctx, i) {
-                    final g = _genres[i];
-                    return GestureDetector(
-                      onTap: () => _searchGenre(context, g.query),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        decoration: BoxDecoration(
-                          color: g.color.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: g.color.withValues(alpha: 0.35),
-                            width: 1,
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          child: Row(
-                            children: [
-                              Icon(g.icon, color: g.color, size: 20),
-                              const SizedBox(width: 10),
-                              Text(
-                                g.label,
-                                style: TextStyle(
-                                  color: theme.colorScheme.onSurface,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ).animate().fadeIn(duration: 300.ms, delay: Duration(milliseconds: i * 40));
-                  },
-                  childCount: _genres.length,
-                ),
+            const SizedBox(height: 8),
+
+            // ── Wheel List ───────────────────────────────────────────────
+            Expanded(
+              child: trendingAsync.when(
+                data: (content) {
+                  final items = [
+                    ...?content['songs'],
+                    ...?content['playlists'],
+                  ].take(15).toList();
+
+                  if (items.isEmpty) {
+                    return _buildEmpty(context);
+                  }
+
+                  return _WheelList(
+                    items: items,
+                    selectedIndex: _selectedIndex,
+                    controller: _wheelController,
+                    onIndexChanged: (idx) {
+                      setState(() => _selectedIndex = idx);
+                      HapticFeedback.selectionClick();
+                    },
+                    onPlay: _playItem,
+                    isDark: isDark,
+                    theme: theme,
+                  );
+                },
+                loading: () => _buildLoading(context, theme),
+                error: (_, __) => _buildEmpty(context),
               ),
             ),
-
-            // ── Trending Now ──────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                child: Row(
-                  children: [
-                    Text(
-                      'Trending Now 🔥',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 18,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const Spacer(),
-                    trendingAsync.whenOrNull(
-                      data: (_) => GestureDetector(
-                        onTap: () => ref.invalidate(trendingContentProvider),
-                        child: Text(
-                          'Refresh',
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ) ?? const SizedBox.shrink(),
-                  ],
-                ),
-              ),
-            ),
-
-            trendingAsync.when(
-              data: (content) {
-                final items = [
-                  ...?content['songs'],
-                  ...?content['playlists'],
-                ].where((item) => item.videoId != null).take(20).toList();
-
-                if (items.isEmpty) {
-                  return SliverToBoxAdapter(child: _buildEmpty(context));
-                }
-
-                return SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (ctx, i) {
-                        final item = items[i];
-                        return _TrendingListItem(
-                          item: item,
-                          rank: i + 1,
-                          onPlay: () => _playItem(item),
-                        ).animate().fadeIn(duration: 280.ms, delay: Duration(milliseconds: i * 30));
-                      },
-                      childCount: items.length,
-                    ),
-                  ),
-                );
-              },
-              loading: () => SliverToBoxAdapter(child: _buildLoading(context, theme)),
-              error: (_, __) => SliverToBoxAdapter(child: _buildEmpty(context)),
-            ),
-
-            const SliverPadding(padding: EdgeInsets.only(bottom: 200)),
           ],
         ),
       ),
@@ -230,140 +112,224 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   }
 
   Widget _buildLoading(BuildContext context, ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
-      child: Center(
-        child: SizedBox(
-          width: 28, height: 28,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: theme.colorScheme.primary.withValues(alpha: 0.6),
-          ),
+    return Center(
+      child: SizedBox(
+        width: 36, height: 36,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: theme.colorScheme.primary.withValues(alpha: 0.6),
         ),
       ),
     );
   }
 
   Widget _buildEmpty(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 60),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(FluentIcons.compass_northwest_24_regular, size: 48,
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)),
-            const SizedBox(height: 16),
-            Text('Nothing to explore yet',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                fontSize: 15,
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(FluentIcons.compass_northwest_24_regular, size: 48,
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.2)),
+          const SizedBox(height: 16),
+          Text('Nothing to explore', style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+              fontSize: 15)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Wheel List ─────────────────────────────────────────────────────────────
+class _WheelList extends StatelessWidget {
+  final List<MuzoItem> items;
+  final int selectedIndex;
+  final FixedExtentScrollController controller;
+  final void Function(int) onIndexChanged;
+  final void Function(MuzoItem) onPlay;
+  final bool isDark;
+  final ThemeData theme;
+
+  const _WheelList({
+    required this.items,
+    required this.selectedIndex,
+    required this.controller,
+    required this.onIndexChanged,
+    required this.onPlay,
+    required this.isDark,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notif) {
+        if (notif is ScrollEndNotification) {
+          final idx = controller.selectedItem % items.length;
+          onIndexChanged(idx);
+        }
+        return false;
+      },
+      child: ListWheelScrollView.useDelegate(
+        controller: controller,
+        physics: const FixedExtentScrollPhysics(),
+        itemExtent: 104,
+        perspective: 0.005,
+        diameterRatio: 2.0,
+        squeeze: 1.05,
+        onSelectedItemChanged: onIndexChanged,
+        childDelegate: ListWheelChildBuilderDelegate(
+          childCount: items.length,
+          builder: (context, index) {
+            final item = items[index];
+            final distFromCenter = (index - selectedIndex).abs();
+            final isSelected = index == selectedIndex;
+            final opacity = isSelected ? 1.0 : (distFromCenter == 1 ? 0.6 : (distFromCenter == 2 ? 0.35 : 0.15));
+            final scale = isSelected ? 1.0 : (distFromCenter == 1 ? 0.88 : 0.75);
+
+            return AnimatedOpacity(
+              duration: const Duration(milliseconds: 250),
+              opacity: opacity.clamp(0.0, 1.0),
+              child: AnimatedScale(
+                duration: const Duration(milliseconds: 250),
+                scale: scale,
+                child: _WheelItem(
+                  item: item,
+                  isSelected: isSelected,
+                  distFromCenter: distFromCenter,
+                  onPlay: () => onPlay(item),
+                  isDark: isDark,
+                  theme: theme,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => ref.invalidate(trendingContentProvider),
-              child: const Text('Try Again'),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-class _TrendingListItem extends StatelessWidget {
+// ─── Wheel Item ─────────────────────────────────────────────────────────────
+class _WheelItem extends StatelessWidget {
   final MuzoItem item;
-  final int rank;
+  final bool isSelected;
+  final int distFromCenter;
   final VoidCallback onPlay;
+  final bool isDark;
+  final ThemeData theme;
 
-  const _TrendingListItem({required this.item, required this.rank, required this.onPlay});
+  const _WheelItem({
+    required this.item,
+    required this.isSelected,
+    required this.distFromCenter,
+    required this.onPlay,
+    required this.isDark,
+    required this.theme,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final thumb = item.thumbnails.isNotEmpty ? item.thumbnails.first.url : '';
+    final title = item.title;
     final artist = item.artists?.isNotEmpty == true ? item.artists!.first.name : '';
+    final avatarSize = isSelected ? 72.0 : (distFromCenter == 1 ? 54.0 : 42.0);
 
-    return GestureDetector(
-      onTap: onPlay,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 30,
-              child: Text(
-                '$rank',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: rank <= 3
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.onSurface.withValues(alpha: 0.35),
-                  fontSize: rank <= 3 ? 14 : 12,
-                  fontWeight: rank <= 3 ? FontWeight.w900 : FontWeight.w600,
-                ),
-              ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        children: [
+          // Album art circle
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            width: avatarSize,
+            height: avatarSize,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.35),
+                        blurRadius: 18,
+                        spreadRadius: 1,
+                      )
+                    ]
+                  : [],
             ),
-            const SizedBox(width: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+            child: ClipOval(
               child: CachedNetworkImage(
-                imageUrl: thumb.isNotEmpty
-                    ? thumb
-                    : '$_thumbBase/${item.videoId}/hqdefault.jpg',
-                width: 52,
-                height: 52,
+                imageUrl: thumb,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
-                  width: 52, height: 52,
-                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  color: theme.colorScheme.surface,
                   child: Icon(FluentIcons.music_note_2_24_regular,
-                      size: 22, color: theme.colorScheme.primary),
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                      size: avatarSize * 0.4),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          ),
+
+          const SizedBox(width: 16),
+
+          // Title & artist
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                    fontSize: isSelected ? 16 : 14,
+                  ),
+                ),
+                if (artist.isNotEmpty) ...[
+                  const SizedBox(height: 3),
                   Text(
-                    item.title,
+                    artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: theme.colorScheme.onSurface,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                      fontSize: 12,
                     ),
                   ),
-                  if (artist.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                        fontSize: 12,
+                ],
+              ],
+            ),
+          ),
+
+          // Play pill (only for selected)
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: isSelected
+                ? GestureDetector(
+                    onTap: onPlay,
+                    child: Container(
+                      key: const ValueKey('play'),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.onSurface,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.play_arrow_rounded, color: theme.colorScheme.surface, size: 16),
+                          const SizedBox(width: 4),
+                          Text('Play', style: TextStyle(color: theme.colorScheme.surface, fontSize: 12, fontWeight: FontWeight.w700)),
+                        ],
                       ),
                     ),
-                  ],
-                ],
-              ),
-            ),
-            Icon(
-              Icons.play_circle_outline_rounded,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-              size: 22,
-            ),
-          ],
-        ),
+                  )
+                : const SizedBox(key: ValueKey('empty'), width: 0, height: 0),
+          ),
+        ],
       ),
     );
   }
