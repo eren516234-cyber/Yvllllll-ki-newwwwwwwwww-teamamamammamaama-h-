@@ -287,7 +287,8 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

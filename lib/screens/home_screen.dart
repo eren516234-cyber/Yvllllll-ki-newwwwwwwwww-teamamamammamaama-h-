@@ -623,16 +623,17 @@ class _HomeSectionCard extends ConsumerWidget {
         itemCount: section.items.length,
         itemBuilder: (ctx, i) {
           final item = section.items[i];
-          final thumb = item.thumbnails.isNotEmpty ? item.thumbnails.first.url : '';
+          final thumb = item.thumbnails.isNotEmpty ? (item.thumbnails.first['url'] as String? ?? '') : '';
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
               final muzo = MuzoItem(
                 title: item.title,
-                artists: item.subtitle != null ? [ArtistRef(name: item.subtitle!, id: null)] : [],
-                thumbnails: item.thumbnails.map((t) => ThumbnailInfo(url: t['url'] ?? '', width: 0, height: 0)).toList(),
+                resultType: item.type ?? 'song',
+                isExplicit: false,
+                artists: item.subtitle != null ? [MuzoArtist(name: item.subtitle!)] : null,
+                thumbnails: item.thumbnails.map((t) => MuzoThumbnail(url: (t['url'] as String?) ?? '', width: 0, height: 0)).toList(),
                 videoId: item.videoId,
-                type: item.type ?? 'song',
               );
               ref.read(audioHandlerProvider).playVideo(muzo);
             },
@@ -696,16 +697,17 @@ class _HomeSectionCard extends ConsumerWidget {
         itemCount: section.items.length,
         itemBuilder: (ctx, i) {
           final item = section.items[i];
-          final thumb = item.thumbnails.isNotEmpty ? item.thumbnails.first.url : '';
+          final thumb = item.thumbnails.isNotEmpty ? (item.thumbnails.first['url'] as String? ?? '') : '';
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
               final muzo = MuzoItem(
                 title: item.title,
-                artists: item.subtitle != null ? [ArtistRef(name: item.subtitle!, id: null)] : [],
-                thumbnails: item.thumbnails.map((t) => ThumbnailInfo(url: t['url'] ?? '', width: 0, height: 0)).toList(),
+                resultType: item.type ?? 'podcast',
+                isExplicit: false,
+                artists: item.subtitle != null ? [MuzoArtist(name: item.subtitle!)] : null,
+                thumbnails: item.thumbnails.map((t) => MuzoThumbnail(url: (t['url'] as String?) ?? '', width: 0, height: 0)).toList(),
                 videoId: item.videoId,
-                type: item.type ?? 'podcast',
               );
               ref.read(audioHandlerProvider).playVideo(muzo);
             },
@@ -772,16 +774,17 @@ class _HomeSectionCard extends ConsumerWidget {
         itemCount: section.items.length,
         itemBuilder: (ctx, i) {
           final item = section.items[i];
-          final thumb = item.thumbnails.isNotEmpty ? item.thumbnails.first.url : '';
+          final thumb = item.thumbnails.isNotEmpty ? (item.thumbnails.first['url'] as String? ?? '') : '';
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
               final muzo = MuzoItem(
                 title: item.title,
-                artists: item.subtitle != null ? [ArtistRef(name: item.subtitle!, id: null)] : [],
-                thumbnails: item.thumbnails.map((t) => ThumbnailInfo(url: t['url'] ?? '', width: 0, height: 0)).toList(),
+                resultType: 'album',
+                isExplicit: false,
+                artists: item.subtitle != null ? [MuzoArtist(name: item.subtitle!)] : null,
+                thumbnails: item.thumbnails.map((t) => MuzoThumbnail(url: (t['url'] as String?) ?? '', width: 0, height: 0)).toList(),
                 videoId: item.videoId,
-                type: 'album',
               );
               ref.read(audioHandlerProvider).playVideo(muzo);
             },
