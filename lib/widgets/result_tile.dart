@@ -16,7 +16,7 @@ import 'package:yvl/utils/page_routes.dart';
 import 'package:yvl/services/navigator_key.dart';
 import 'package:yvl/providers/search_provider.dart';
 
-class ResultTile extends ConsumerWidget {
+class ResultTile extends ConsumerStatefulWidget {
   final MuzoItem result;
   final bool compact;
   final bool fromHistory;
@@ -29,84 +29,112 @@ class ResultTile extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ResultTile> createState() => _ResultTileState();
+}
+
+class _ResultTileState extends ConsumerState<ResultTile>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pressController;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 80),
+      reverseDuration: const Duration(milliseconds: 180),
+    );
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.96).animate(
+      CurvedAnimation(parent: _pressController, curve: Curves.easeOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressController.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) => _pressController.forward();
+  void _onTapUp(TapUpDetails _) => _pressController.reverse();
+  void _onTapCancel() => _pressController.reverse();
+
+  void _handleTap() {
+    HapticFeedback.lightImpact();
+    final result = widget.result;
+    final type = result.resultType.toLowerCase();
+    final bId = result.browseId;
+
+    final nav = navigatorKey.currentState;
+    if (nav == null) return;
+
+    if (type == 'artist' && bId != null && bId.isNotEmpty) {
+      nav.push(SlidePageRoute(
+        page: ArtistScreen(
+          browseId: bId,
+          artistName: result.title,
+          thumbnailUrl: result.thumbnails.lastOrNull?.url,
+        ),
+      ));
+    } else if (type == 'playlist' && bId != null && bId.isNotEmpty) {
+      nav.push(SlidePageRoute(
+        page: PlaylistScreen(
+          playlistId: bId,
+          title: result.title,
+          thumbnailUrl: result.thumbnails.lastOrNull?.url,
+        ),
+      ));
+    } else if (type == 'album' && bId != null && bId.isNotEmpty) {
+      nav.push(SlidePageRoute(
+        page: AlbumScreen(
+          albumId: bId,
+          albumName: result.title,
+          thumbnailUrl: result.thumbnails.lastOrNull?.url,
+        ),
+      ));
+    } else if (type == 'channel' && bId != null && bId.isNotEmpty) {
+      nav.push(SlidePageRoute(
+        page: ChannelScreen(
+          channelId: bId,
+          title: result.title,
+          thumbnailUrl: result.thumbnails.lastOrNull?.url,
+          subscriberCount: result.subscriberCount,
+          videoCount: result.videoCount,
+          description: result.description,
+        ),
+      ));
+    } else if (result.videoId != null) {
+      ref.read(audioHandlerProvider).playVideo(result);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final result = widget.result;
     String imageUrl = '';
     if (result.thumbnails.isNotEmpty) {
       imageUrl = result.thumbnails.last.url;
     }
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.lightImpact();
-          final type = result.resultType.toLowerCase();
-          final bId = result.browseId;
-          
-          final nav = navigatorKey.currentState;
-          if (nav == null) return;
-
-          if (type == 'artist' && bId != null && bId.isNotEmpty) {
-            nav.push(
-              SlidePageRoute(
-                page: ArtistScreen(
-                  browseId: bId,
-                  artistName: result.title,
-                  thumbnailUrl: result.thumbnails.lastOrNull?.url,
-                ),
-              ),
-            );
-          } else if (type == 'playlist' && bId != null && bId.isNotEmpty) {
-            nav.push(
-              SlidePageRoute(
-                page: PlaylistScreen(
-                  playlistId: bId,
-                  title: result.title,
-                  thumbnailUrl: result.thumbnails.lastOrNull?.url,
-                ),
-              ),
-            );
-          } else if (type == 'album' && bId != null && bId.isNotEmpty) {
-            nav.push(
-              SlidePageRoute(
-                page: AlbumScreen(
-                  albumId: bId,
-                  albumName: result.title,
-                  thumbnailUrl: result.thumbnails.lastOrNull?.url,
-                ),
-              ),
-            );
-          } else if (type == 'channel' && bId != null && bId.isNotEmpty) {
-            nav.push(
-              SlidePageRoute(
-                page: ChannelScreen(
-                  channelId: bId,
-                  title: result.title,
-                  thumbnailUrl: result.thumbnails.lastOrNull?.url,
-                  subscriberCount: result.subscriberCount,
-                  videoCount: result.videoCount,
-                  description: result.description,
-                ),
-              ),
-            );
-          } else if (result.videoId != null) {
-            ref.read(audioHandlerProvider).playVideo(result);
-          }
-        },
+    return ScaleTransition(
+      scale: _scaleAnim,
+      child: GestureDetector(
+        onTapDown: _onTapDown,
+        onTapUp: _onTapUp,
+        onTapCancel: _onTapCancel,
+        onTap: _handleTap,
         child: Padding(
-          padding: compact
+          padding: widget.compact
               ? const EdgeInsets.symmetric(horizontal: 0, vertical: 4)
               : const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
-              // Calculate width based on result type
-              // Calculate width based on result type
               Builder(
                 builder: (context) {
                   final isVideo = result.resultType == 'video';
-                  // Default width guess for placeholders
                   final defaultWidth = isVideo ? 100.0 : 56.0;
-                  final height = 56.0;
+                  const height = 56.0;
                   return Container(
                     height: height,
                     decoration: BoxDecoration(
@@ -144,10 +172,16 @@ class ResultTile extends ConsumerWidget {
                           : Container(
                               height: height,
                               width: defaultWidth,
-                              color: Theme.of(context).colorScheme.surfaceVariant.withValues(alpha: 0.3),
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest
+                                  .withValues(alpha: 0.3),
                               child: Icon(
                                 FluentIcons.music_note_2_24_regular,
-                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.3),
                               ),
                             ),
                     ),
@@ -164,7 +198,8 @@ class ResultTile extends ConsumerWidget {
                       result.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -175,21 +210,27 @@ class ResultTile extends ConsumerWidget {
                         } else if (result.resultType == 'playlist') {
                           subtitle = 'Playlist';
                         }
-
                         if (result.duration != null) {
-                          if (subtitle.isNotEmpty && subtitle != 'Unknown') subtitle += ' • ';
+                          if (subtitle.isNotEmpty && subtitle != 'Unknown') {
+                            subtitle += ' • ';
+                          }
                           subtitle += result.duration!;
                         }
-
                         if (result.views != null) {
-                          if (subtitle.isNotEmpty && subtitle != 'Unknown') subtitle += ' • ';
+                          if (subtitle.isNotEmpty && subtitle != 'Unknown') {
+                            subtitle += ' • ';
+                          }
                           subtitle += '${result.views} views';
                         }
-
-                        return subtitle == 'Unknown' && result.duration == null ? '' : subtitle;
+                        return subtitle == 'Unknown' && result.duration == null
+                            ? ''
+                            : subtitle;
                       }(),
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .onSurface
+                            .withValues(alpha: 0.6),
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
                       ),
@@ -200,17 +241,10 @@ class ResultTile extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              // We need to wrap the PopupMenuButton with a Consumer to access storage
               Consumer(
                 builder: (context, ref, _) {
-                  if (result.videoId == null) {
-                    return const SizedBox.shrink();
-                  }
-                  
-                  // Use ref.read instead of ref.watch to prevent unnecessary rebuilds
-                  // when other unrelated storage properties change.
+                  if (result.videoId == null) return const SizedBox.shrink();
                   final storage = ref.read(storageServiceProvider);
-                  
                   return ValueListenableBuilder<List<MuzoItem>>(
                     valueListenable: storage.favoritesListenable,
                     builder: (context, favorites, _) {
@@ -225,7 +259,7 @@ class ResultTile extends ConsumerWidget {
                           SongOptionsMenu.show(
                             ref,
                             result,
-                            fromHistory: fromHistory,
+                            fromHistory: widget.fromHistory,
                           );
                         },
                       );

@@ -396,6 +396,88 @@ class ThemeLogic {
     );
   }
 
+  static ThemeData _buildCozyNightTheme(String fontFamily) {
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarIconBrightness: Brightness.light,
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.white.withValues(alpha: 0.002),
+      systemNavigationBarDividerColor: Colors.transparent,
+      systemNavigationBarIconBrightness: Brightness.light,
+      systemStatusBarContrastEnforced: false,
+      systemNavigationBarContrastEnforced: true,
+    ));
+
+    const Color scaffold = Color(0xFF100A06);
+    const Color surface = Color(0xFF1A100A);
+    const Color card = Color(0xFF231409);
+    const Color primary = Color(0xFFFFB347);
+    const Color secondary = Color(0xFFDAA520);
+    const Color onSurface = Color(0xFFFFF3E0);
+
+    final baseTheme = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: scaffold,
+      canvasColor: card,
+      primaryColor: primary,
+      colorScheme: const ColorScheme.dark(
+        primary: primary,
+        secondary: secondary,
+        surface: surface,
+        onSurface: onSurface,
+        outline: Color(0xFF3D2010),
+      ),
+      cardColor: card,
+      dividerColor: const Color(0xFF2E1A0E),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: Color(0xFF1E1208),
+        modalBarrierColor: Colors.black87,
+      ),
+      textTheme: const TextTheme(
+        titleLarge: TextStyle(fontSize: 23, fontWeight: FontWeight.bold, color: onSurface),
+        titleMedium: TextStyle(fontWeight: FontWeight.bold, color: onSurface),
+        titleSmall: TextStyle(color: Color(0xFFD4A96A)),
+        bodyMedium: TextStyle(color: Color(0xFFB8936A)),
+        labelMedium: TextStyle(fontWeight: FontWeight.w800, fontSize: 23, color: onSurface),
+        labelSmall: TextStyle(fontSize: 15, color: Color(0xFFB8936A), letterSpacing: 0, fontWeight: FontWeight.bold),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        linearTrackColor: Color(0xFF2E1A0E),
+        color: primary,
+      ),
+      sliderTheme: const SliderThemeData(
+        inactiveTrackColor: Color(0xFF2E1A0E),
+        activeTrackColor: primary,
+        thumbColor: Colors.white,
+        trackHeight: 4,
+      ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: primary,
+        selectionColor: Color(0x55FFB347),
+        selectionHandleColor: primary,
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(foregroundColor: primary),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: ZoomPageTransitionsBuilder(),
+          TargetPlatform.macOS: ZoomPageTransitionsBuilder(),
+        },
+      ),
+      dialogTheme: const DialogThemeData(backgroundColor: Color(0xFF1E1208)),
+      tabBarTheme: const TabBarThemeData(indicatorColor: primary),
+      listTileTheme: const ListTileThemeData(
+        titleTextStyle: TextStyle(color: onSurface, fontWeight: FontWeight.w600, fontSize: 16),
+        subtitleTextStyle: TextStyle(color: Color(0xFFB8936A), fontSize: 12),
+      ),
+    );
+    return baseTheme.copyWith(
+      textTheme: GoogleFonts.getTextTheme(fontFamily, baseTheme.textTheme),
+    );
+  }
+
   static ThemeData createThemeData(
     MaterialColor? primarySwatch,
     ThemeType themeType, {
@@ -414,6 +496,8 @@ class ThemeLogic {
         return _buildLightTheme(fontFamily, dynamicColorScheme: dynamicColorScheme);
       case ThemeType.doodle:
         return _buildDoodleTheme(fontFamily);
+      case ThemeType.cozyNight:
+        return _buildCozyNightTheme(fontFamily);
       default:
         return _buildDarkTheme(fontFamily, dynamicColorScheme: dynamicColorScheme);
     }
@@ -440,6 +524,8 @@ final themeProvider = Provider<ThemeData>((ref) {
       return ThemeLogic.createThemeData(null, ThemeType.sky, fontFamily: fontFamily);
     case ThemeType.doodle:
       return ThemeLogic.createThemeData(null, ThemeType.doodle, fontFamily: fontFamily);
+    case ThemeType.cozyNight:
+      return ThemeLogic.createThemeData(null, ThemeType.cozyNight, fontFamily: fontFamily);
     default:
       return ThemeLogic.createThemeData(null, ThemeType.dark,
           dynamicColorScheme: dynamicColorScheme, fontFamily: fontFamily);

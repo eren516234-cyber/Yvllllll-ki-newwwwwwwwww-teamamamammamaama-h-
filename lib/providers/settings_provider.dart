@@ -3,7 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 enum AudioQuality { high, medium, low }
 
-enum ThemeType { auto, dark, light, sky, doodle }
+enum ThemeType { auto, dark, light, sky, doodle, cozyNight }
 
 class SettingsState {
   final AudioQuality audioQuality;

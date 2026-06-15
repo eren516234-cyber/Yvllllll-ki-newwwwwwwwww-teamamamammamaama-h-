@@ -19,6 +19,7 @@ import 'package:yvl/providers/overlay_provider.dart';
 import 'package:yvl/services/auth_service.dart';
 import 'package:app_links/app_links.dart';
 import 'package:yvl/widgets/floating_sleep_timer.dart';
+import 'package:yvl/widgets/cozy_companion.dart';
 
 class MainLayout extends ConsumerStatefulWidget {
   final Widget child;
@@ -211,6 +212,13 @@ class _MainLayoutState extends ConsumerState<MainLayout>
 
             // 5. Floating sleep timer
             const FloatingSleepTimer(),
+
+            // 5b. Cozy Night companion (bottom-right, only in Cozy Night theme)
+            Positioned(
+              right: 16,
+              bottom: 80 + MediaQuery.of(context).padding.bottom,
+              child: const CozyCompanion(),
+            ),
 
             // 6. Global bottom sheet
             if (globalBottomSheet != null)

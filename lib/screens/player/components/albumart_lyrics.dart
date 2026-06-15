@@ -280,7 +280,18 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
                   child: _GlassLyricButton(
                     icon: FluentIcons.arrow_sync_20_filled,
                     label: 'Re-sync',
-                    onTap: () => audioHandler.seek(Duration.zero),
+                    onTap: () {
+                      // Re-fetch lyrics without touching playback position
+                      setState(() {
+                        _lyrics = null;
+                        _lastFetchedTitle = null;
+                        _isLoadingLyrics = false;
+                      });
+                      final mediaItem = mediaItemAsync.value;
+                      if (mediaItem != null) {
+                        _fetchLyrics(mediaItem);
+                      }
+                    },
                   ),
                 ),
             ],

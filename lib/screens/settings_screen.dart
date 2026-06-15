@@ -351,6 +351,7 @@ class SettingsScreen extends ConsumerWidget {
       case ThemeType.light: return 'Light';
       case ThemeType.sky: return 'Sky (Animated)';
       case ThemeType.doodle: return 'Doodle (Animated)';
+      case ThemeType.cozyNight: return 'Cozy Night Studio';
     }
   }
 
@@ -406,6 +407,11 @@ class SettingsScreen extends ConsumerWidget {
                     _buildThemeCardWide(context, ref, ThemeType.doodle, cur,
                         icon: Icons.music_note_rounded, label: 'Doodle', sublabel: 'Warm cream with animated music notes',
                         color1: const Color(0xFFFF6B6B), color2: const Color(0xFFFFB347), color3: const Color(0xFF4ECDC4)),
+                    const SizedBox(height: 12),
+                    // Row 4: Cozy Night Studio (full width)
+                    _buildThemeCardWide(context, ref, ThemeType.cozyNight, cur,
+                        icon: Icons.nights_stay_rounded, label: 'Cozy Night', sublabel: 'Warm amber studio with rain & lamp glow',
+                        color1: const Color(0xFF100A06), color2: const Color(0xFFFFB347), color3: const Color(0xFF3D2010)),
                   ],
                 ),
               ),
