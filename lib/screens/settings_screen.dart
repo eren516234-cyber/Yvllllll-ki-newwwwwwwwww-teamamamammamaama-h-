@@ -350,6 +350,7 @@ class SettingsScreen extends ConsumerWidget {
       case ThemeType.dark: return 'Dark (Ultra Black)';
       case ThemeType.light: return 'Light';
       case ThemeType.sky: return 'Sky (Animated)';
+      case ThemeType.doodle: return 'Doodle (Animated)';
     }
   }
 
@@ -400,6 +401,11 @@ class SettingsScreen extends ConsumerWidget {
                     _buildThemeCardWide(context, ref, ThemeType.sky, cur,
                         icon: Icons.cloud_outlined, label: 'Sky', sublabel: 'Animated sky gradient',
                         color1: const Color(0xFF010A18), color2: const Color(0xFF006064), color3: const Color(0xFF0D47A1)),
+                    const SizedBox(height: 12),
+                    // Row 3: Doodle (full width)
+                    _buildThemeCardWide(context, ref, ThemeType.doodle, cur,
+                        icon: Icons.music_note_rounded, label: 'Doodle', sublabel: 'Warm cream with animated music notes',
+                        color1: const Color(0xFFFF6B6B), color2: const Color(0xFFFFB347), color3: const Color(0xFF4ECDC4)),
                   ],
                 ),
               ),

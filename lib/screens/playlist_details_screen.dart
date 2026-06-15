@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:yvl/models/muzo_item.dart';
 import 'package:yvl/models/user_data.dart';
@@ -33,7 +34,6 @@ class PlaylistDetailsScreen extends ConsumerWidget {
             IconButton(
               icon: const Icon(FluentIcons.delete_24_regular),
               onPressed: () {
-                // Confirm delete
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
@@ -54,8 +54,8 @@ class PlaylistDetailsScreen extends ConsumerWidget {
                       TextButton(
                         onPressed: () {
                           storage.deletePlaylist(playlistName);
-                          Navigator.pop(context); // Close dialog
-                          Navigator.pop(context); // Go back to library
+                          Navigator.pop(context);
+                          Navigator.pop(context);
                         },
                         child: Text(
                           'Delete',
@@ -83,26 +83,14 @@ class PlaylistDetailsScreen extends ConsumerWidget {
               valueListenable: storage.downloadsListenable,
               builder: (context, box, _) {
                 final downloadState = ref.watch(downloadProvider);
-                final activeSongs = downloadState.activeDownloads.values
-                    .toList();
-
+                final activeSongs = downloadState.activeDownloads.values.toList();
                 final downloads = storage.getDownloads();
                 final storedSongs = downloads
-                    .map(
-                      (d) => MuzoItem.fromJson(
-                        Map<String, dynamic>.from(d['result']),
-                      ),
-                    )
+                    .map((d) => MuzoItem.fromJson(Map<String, dynamic>.from(d['result'])))
                     .toList();
-
-                // Combine active first.
                 final allSongs = [...activeSongs, ...storedSongs];
-
                 return _buildSongList(
-                  context,
-                  ref,
-                  allSongs,
-                  storage,
+                  context, ref, allSongs, storage,
                   progressMap: downloadState.progressMap,
                 );
               },
@@ -134,37 +122,50 @@ class PlaylistDetailsScreen extends ConsumerWidget {
       );
     }
 
+    final isDownloadsPlaylist = playlistName == 'Downloads';
+    final canDownloadAll = !isDownloadsPlaylist && playlistName != 'Favorites';
+
     return Column(
       children: [
-        // Play All Button
+        // Action buttons
         Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                ref.read(audioHandlerProvider).playAll(songs);
-              },
-              icon: Icon(FluentIcons.play_24_filled, color: Theme.of(context).colorScheme.surface),
-              label: Text(
-                'Play All',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.surface,
-                  fontWeight: FontWeight.bold,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Row(
+            children: [
+              // Play All
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    ref.read(audioHandlerProvider).playAll(songs);
+                  },
+                  icon: Icon(FluentIcons.play_24_filled, color: Theme.of(context).colorScheme.surface),
+                  label: Text(
+                    'Play All',
+                    style: TextStyle(color: Theme.of(context).colorScheme.surface, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.onSurface,
+                    foregroundColor: Theme.of(context).colorScheme.surface,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
                 ),
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.onSurface,
-                foregroundColor: Theme.of(context).colorScheme.surface,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+
+              // Download All (only for user playlists)
+              if (canDownloadAll) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _DownloadAllButton(songs: songs, playlistName: playlistName),
                 ),
-              ),
-            ),
+              ],
+            ],
           ),
         ),
+
+        const SizedBox(height: 8),
 
         // Songs List
         Expanded(
@@ -180,20 +181,13 @@ class PlaylistDetailsScreen extends ConsumerWidget {
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: CachedNetworkImage(
-                    imageUrl: song.thumbnails.isNotEmpty
-                        ? song.thumbnails.last.url
-                        : '',
-                    width: 48,
-                    height: 48,
-                    fit: BoxFit.cover,
+                    imageUrl: song.thumbnails.isNotEmpty ? song.thumbnails.last.url : '',
+                    width: 48, height: 48, fit: BoxFit.cover,
                     errorWidget: (context, url, error) => Container(
                       color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                      width: 48,
-                      height: 48,
-                      child: Icon(
-                        FluentIcons.music_note_2_24_regular,
-                        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
-                      ),
+                      width: 48, height: 48,
+                      child: Icon(FluentIcons.music_note_2_24_regular,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                     ),
                   ),
                 ),
@@ -206,16 +200,13 @@ class PlaylistDetailsScreen extends ConsumerWidget {
                 subtitle: isDownloading
                     ? LinearProgressIndicator(
                         value: progress,
-                    backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
-                        valueColor: const AlwaysStoppedAnimation(
-                          Color(0xFF1ED760),
-                        ),
+                        backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
+                        valueColor: const AlwaysStoppedAnimation(Color(0xFF1ED760)),
                         minHeight: 4,
                       )
                     : Text(
                         song.displayArtist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1, overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                           fontSize: 12,
@@ -225,11 +216,9 @@ class PlaylistDetailsScreen extends ConsumerWidget {
                   icon: Icon(
                     playlistName == 'Favorites'
                         ? FluentIcons.heart_24_filled
-                        : playlistName == 'Downloads'
-                        ? (isDownloading
-                              ? FluentIcons.dismiss_circle_24_regular
-                              : FluentIcons.delete_24_regular)
-                        : FluentIcons.subtract_circle_24_regular,
+                        : isDownloadsPlaylist
+                            ? (isDownloading ? FluentIcons.dismiss_circle_24_regular : FluentIcons.delete_24_regular)
+                            : FluentIcons.subtract_circle_24_regular,
                     color: playlistName == 'Favorites'
                         ? const Color(0xFF1ED760)
                         : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
@@ -237,19 +226,14 @@ class PlaylistDetailsScreen extends ConsumerWidget {
                   onPressed: () {
                     if (playlistName == 'Favorites') {
                       storage.toggleFavorite(song);
-                    } else if (playlistName == 'Downloads') {
+                    } else if (isDownloadsPlaylist) {
                       if (isDownloading) {
-                        ref
-                            .read(downloadProvider.notifier)
-                            .deleteDownload(song.videoId!);
+                        ref.read(downloadProvider.notifier).deleteDownload(song.videoId!);
                       } else {
                         storage.removeDownload(song.videoId!);
                       }
                     } else {
-                      storage.removeFromPlaylist(
-                        playlistName,
-                        song.videoId ?? '',
-                      );
+                      storage.removeFromPlaylist(playlistName, song.videoId ?? '');
                     }
                   },
                 ),
@@ -259,15 +243,94 @@ class PlaylistDetailsScreen extends ConsumerWidget {
                   }
                 },
                 onLongPress: () {
-                  if (!isDownloading) {
-                    SongOptionsMenu.show(ref, song);
-                  }
+                  if (!isDownloading) SongOptionsMenu.show(ref, song);
                 },
               );
             },
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Download All Button ─────────────────────────────────────────────────────
+class _DownloadAllButton extends ConsumerStatefulWidget {
+  final List<MuzoItem> songs;
+  final String playlistName;
+
+  const _DownloadAllButton({required this.songs, required this.playlistName});
+
+  @override
+  ConsumerState<_DownloadAllButton> createState() => _DownloadAllButtonState();
+}
+
+class _DownloadAllButtonState extends ConsumerState<_DownloadAllButton> {
+  bool _isStarted = false;
+
+  void _downloadAll() async {
+    HapticFeedback.lightImpact();
+    setState(() => _isStarted = true);
+
+    final downloadNotifier = ref.read(downloadProvider.notifier);
+    final storage = ref.read(storageServiceProvider);
+    final existingDownloads = storage.getDownloads().map((d) => d['videoId'] as String?).toSet();
+
+    int queued = 0;
+    for (final song in widget.songs) {
+      if (song.videoId != null && !existingDownloads.contains(song.videoId)) {
+        downloadNotifier.startDownload(song);
+        queued++;
+        await Future.delayed(const Duration(milliseconds: 300));
+      }
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(queued > 0
+              ? 'Downloading $queued songs from "${widget.playlistName}"'
+              : 'All songs are already downloaded'),
+          backgroundColor: queued > 0 ? const Color(0xFF1ED760) : Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      setState(() => _isStarted = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final downloadState = ref.watch(downloadProvider);
+    final activeCount = downloadState.activeDownloads.length;
+    final isDownloading = _isStarted || activeCount > 0;
+
+    return ElevatedButton.icon(
+      onPressed: isDownloading ? null : _downloadAll,
+      icon: isDownloading
+          ? SizedBox(
+              width: 14, height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            )
+          : const Icon(FluentIcons.arrow_download_24_filled, size: 18),
+      label: Text(
+        isDownloading ? 'Downloading...' : 'Download All',
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.08),
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.15)),
+        ),
+      ),
     );
   }
 }

@@ -14,7 +14,7 @@ import 'package:yvl/widgets/karaoke_view.dart';
 import 'package:yvl/providers/player_provider.dart';
 import 'package:yvl/providers/theme_provider.dart';
 
-enum LyricsMode { classic, bubble, karaoke, wave, personal }
+enum LyricsMode { classic, bubble, karaoke, wave, personal, neon, float }
 
 class LyricsScreen extends ConsumerStatefulWidget {
   final String title;
@@ -135,12 +135,14 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
   Widget build(BuildContext context) {
     final audioHandler = ref.watch(audioHandlerProvider);
     final accentColor = ref.watch(currentPaletteProvider).asData?.value?.darkVibrantColor?.color;
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        toolbarHeight: 64,
         leading: IconButton(
           icon: const Icon(FluentIcons.chevron_down_24_regular, color: Colors.white),
           onPressed: () => Navigator.of(context).pop(),
@@ -169,10 +171,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
       ),
       body: Stack(
         children: [
-          // Background
-          Positioned.fill(child: _buildBackground()),
-
-          // Content area
+          Positioned.fill(child: _buildBackground(accentColor)),
           SafeArea(
             child: Column(
               children: [
@@ -203,7 +202,39 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
     );
   }
 
-  Widget _buildBackground() {
+  Widget _buildBackground(Color? accentColor) {
+    if (_mode == LyricsMode.neon) {
+      return Stack(
+        children: [
+          Container(color: Colors.black),
+          Positioned(
+            top: -100,
+            left: -80,
+            child: _NeonBlob(color: accentColor ?? const Color(0xFF00E5FF), size: 300),
+          ),
+          Positioned(
+            bottom: -80,
+            right: -60,
+            child: _NeonBlob(color: Colors.purpleAccent, size: 250),
+          ),
+        ],
+      );
+    }
+    if (_mode == LyricsMode.float) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              const Color(0xFF0D0D1A),
+              accentColor?.withValues(alpha: 0.3) ?? const Color(0xFF1A0D2E),
+              const Color(0xFF0A0A14),
+            ],
+          ),
+        ),
+      );
+    }
     if (_mode == LyricsMode.personal && _personalBgImage != null) {
       return Stack(
         children: [
@@ -286,6 +317,22 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
           onPickImage: _pickPersonalBg,
           hasBg: _personalBgImage != null,
         );
+
+      case LyricsMode.neon:
+        return _NeonLyricsView(
+          key: const ValueKey('neon'),
+          lyrics: _lyrics!,
+          positionStream: audioHandler.player.positionStream,
+          accentColor: accentColor ?? const Color(0xFF00E5FF),
+        );
+
+      case LyricsMode.float:
+        return _FloatLyricsView(
+          key: const ValueKey('float'),
+          lyrics: _lyrics!,
+          positionStream: audioHandler.player.positionStream,
+          accentColor: accentColor ?? Colors.purpleAccent,
+        );
     }
   }
 
@@ -295,6 +342,8 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
       (LyricsMode.bubble, 'Bubble', Icons.chat_bubble_outline_rounded),
       (LyricsMode.karaoke, 'Karaoke', Icons.mic_none_rounded),
       (LyricsMode.wave, 'Wave', Icons.waves_rounded),
+      (LyricsMode.neon, 'Neon', Icons.blur_on_rounded),
+      (LyricsMode.float, 'Float', Icons.animation_rounded),
       (LyricsMode.personal, 'Personal', Icons.image_outlined),
     ];
 
@@ -391,7 +440,284 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
   }
 }
 
-// ─── Wave Mode ────────────────────────────────────────────────────────────
+// ─── Neon Blob helper ──────────────────────────────────────────────────────
+class _NeonBlob extends StatelessWidget {
+  final Color color;
+  final double size;
+  const _NeonBlob({required this.color, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color.withValues(alpha: 0.45), Colors.transparent],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Neon Mode ─────────────────────────────────────────────────────────────
+class _NeonLyricsView extends StatefulWidget {
+  final Lyrics lyrics;
+  final Stream<Duration> positionStream;
+  final Color accentColor;
+
+  const _NeonLyricsView({super.key, required this.lyrics, required this.positionStream, required this.accentColor});
+
+  @override
+  State<_NeonLyricsView> createState() => _NeonLyricsViewState();
+}
+
+class _NeonLyricsViewState extends State<_NeonLyricsView> with SingleTickerProviderStateMixin {
+  List<_LrcLine> _lines = [];
+  int _currentIndex = -1;
+  late AnimationController _pulseCtrl;
+  final ScrollController _scroll = ScrollController();
+  final Map<int, GlobalKey> _keys = {};
+  StreamSubscription<Duration>? _sub;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat(reverse: true);
+    _lines = _parseLrc(widget.lyrics.syncedLyrics.isNotEmpty ? widget.lyrics.syncedLyrics : widget.lyrics.plainLyrics);
+    _sub = widget.positionStream.listen(_onPosition);
+  }
+
+  void _onPosition(Duration pos) {
+    if (!mounted) return;
+    int idx = -1;
+    for (int i = _lines.length - 1; i >= 0; i--) {
+      if (pos >= _lines[i].time) { idx = i; break; }
+    }
+    if (idx != _currentIndex) {
+      setState(() => _currentIndex = idx);
+      _scrollToActive(idx);
+    }
+  }
+
+  void _scrollToActive(int idx) {
+    if (!_scroll.hasClients || idx < 0) return;
+    final key = _keys[idx];
+    if (key?.currentContext == null) return;
+    Scrollable.ensureVisible(key!.currentContext!, alignment: 0.35,
+        duration: const Duration(milliseconds: 450), curve: Curves.easeInOut);
+  }
+
+  static List<_LrcLine> _parseLrc(String lrc) {
+    final lines = <_LrcLine>[];
+    final regex = RegExp(r'\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)');
+    for (final raw in lrc.split('\n')) {
+      final m = regex.firstMatch(raw.trim());
+      if (m == null) {
+        if (lines.isEmpty && raw.trim().isNotEmpty) lines.add(_LrcLine(time: Duration.zero, text: raw.trim()));
+        continue;
+      }
+      final min = int.parse(m.group(1)!);
+      final sec = int.parse(m.group(2)!);
+      final ms = int.parse(m.group(3)!.padRight(3, '0').substring(0, 3));
+      final text = m.group(4)!.trim();
+      if (text.isEmpty) continue;
+      lines.add(_LrcLine(time: Duration(minutes: min, seconds: sec, milliseconds: ms), text: text));
+    }
+    return lines;
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _pulseCtrl.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      itemCount: _lines.length,
+      itemBuilder: (ctx, i) {
+        final isActive = i == _currentIndex;
+        _keys[i] ??= GlobalKey();
+        final dist = (i - _currentIndex).abs();
+        return Container(
+          key: _keys[i],
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: isActive
+              ? AnimatedBuilder(
+                  animation: _pulseCtrl,
+                  builder: (_, __) {
+                    final glow = 0.5 + _pulseCtrl.value * 0.5;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: widget.accentColor.withValues(alpha: 0.08),
+                        boxShadow: [
+                          BoxShadow(color: widget.accentColor.withValues(alpha: 0.35 * glow), blurRadius: 24 * glow, spreadRadius: 2),
+                          BoxShadow(color: widget.accentColor.withValues(alpha: 0.15 * glow), blurRadius: 48 * glow),
+                        ],
+                        border: Border.all(color: widget.accentColor.withValues(alpha: 0.4 * glow), width: 1),
+                      ),
+                      child: Text(
+                        _lines[i].text,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: widget.accentColor,
+                          shadows: [
+                            Shadow(color: widget.accentColor.withValues(alpha: 0.9 * glow), blurRadius: 20),
+                            Shadow(color: widget.accentColor.withValues(alpha: 0.5 * glow), blurRadius: 40),
+                          ],
+                          height: 1.35,
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : Text(
+                  _lines[i].text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: dist == 1 ? 16 : 13,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: dist == 1 ? 0.3 : 0.15),
+                    height: 1.35,
+                  ),
+                ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Float Mode ─────────────────────────────────────────────────────────────
+class _FloatLyricsView extends StatefulWidget {
+  final Lyrics lyrics;
+  final Stream<Duration> positionStream;
+  final Color accentColor;
+
+  const _FloatLyricsView({super.key, required this.lyrics, required this.positionStream, required this.accentColor});
+
+  @override
+  State<_FloatLyricsView> createState() => _FloatLyricsViewState();
+}
+
+class _FloatLyricsViewState extends State<_FloatLyricsView> with SingleTickerProviderStateMixin {
+  List<_LrcLine> _lines = [];
+  int _currentIndex = -1;
+  late AnimationController _floatCtrl;
+  StreamSubscription<Duration>? _sub;
+  final ScrollController _scroll = ScrollController();
+  final Map<int, GlobalKey> _keys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _floatCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat(reverse: true);
+    _lines = _NeonLyricsViewState._parseLrc(
+      widget.lyrics.syncedLyrics.isNotEmpty ? widget.lyrics.syncedLyrics : widget.lyrics.plainLyrics);
+    _sub = widget.positionStream.listen(_onPos);
+  }
+
+  void _onPos(Duration pos) {
+    if (!mounted) return;
+    int idx = -1;
+    for (int i = _lines.length - 1; i >= 0; i--) {
+      if (pos >= _lines[i].time) { idx = i; break; }
+    }
+    if (idx != _currentIndex) {
+      setState(() => _currentIndex = idx);
+      if (idx >= 0) {
+        final key = _keys[idx];
+        if (key?.currentContext != null) {
+          Scrollable.ensureVisible(key!.currentContext!, alignment: 0.35,
+              duration: const Duration(milliseconds: 500), curve: Curves.easeInOutCubic);
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _floatCtrl.dispose();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 60),
+      itemCount: _lines.length,
+      itemBuilder: (ctx, i) {
+        final isActive = i == _currentIndex;
+        final dist = (i - _currentIndex).abs();
+        _keys[i] ??= GlobalKey();
+        return Container(
+          key: _keys[i],
+          alignment: Alignment.center,
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          child: isActive
+              ? AnimatedBuilder(
+                  animation: _floatCtrl,
+                  builder: (_, __) {
+                    final floatOffset = _floatCtrl.value * 4.0;
+                    return Transform.translate(
+                      offset: Offset(0, -floatOffset),
+                      child: ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: [
+                            widget.accentColor,
+                            Colors.white,
+                            widget.accentColor.withValues(alpha: 0.85),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        blendMode: BlendMode.srcIn,
+                        child: Text(
+                          _lines[i].text,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            height: 1.3,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                )
+              : AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 300),
+                  style: TextStyle(
+                    fontSize: dist == 1 ? 17 : (dist == 2 ? 14 : 12),
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white.withValues(alpha: dist == 1 ? 0.35 : 0.15),
+                    height: 1.35,
+                  ),
+                  child: Text(_lines[i].text, textAlign: TextAlign.center),
+                ),
+        );
+      },
+    );
+  }
+}
+
+// ─── Wave Mode ─────────────────────────────────────────────────────────────
 class _WaveLyricsView extends StatefulWidget {
   final Lyrics lyrics;
   final Stream<Duration> positionStream;
@@ -528,7 +854,7 @@ class _WaveLyricsViewState extends State<_WaveLyricsView>
   }
 }
 
-// ─── Personal Mode ────────────────────────────────────────────────────────
+// ─── Personal Mode ─────────────────────────────────────────────────────────
 class _PersonalLyricsView extends StatefulWidget {
   final Lyrics lyrics;
   final Stream<Duration> positionStream;
@@ -559,7 +885,7 @@ class _PersonalLyricsViewState extends State<_PersonalLyricsView> {
   @override
   void initState() {
     super.initState();
-    _lines = _WaveLyricsViewState._parseLrc(
+    _lines = _NeonLyricsViewState._parseLrc(
       widget.lyrics.syncedLyrics.isNotEmpty ? widget.lyrics.syncedLyrics : widget.lyrics.plainLyrics);
     _sub = widget.positionStream.listen(_onPos);
   }
@@ -626,7 +952,7 @@ class _PersonalLyricsViewState extends State<_PersonalLyricsView> {
                 child: const Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.photo_library_outlined, color: Colors.white, size: 20),
                   SizedBox(width: 10),
-                  Text('Choose Photo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
+                  Text('Pick Photo', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15)),
                 ]),
               ),
             ),
@@ -635,52 +961,40 @@ class _PersonalLyricsViewState extends State<_PersonalLyricsView> {
       );
     }
 
-    return Stack(
-      children: [
-        ListView.builder(
-          controller: _scroll,
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-          itemCount: _lines.length,
-          itemBuilder: (context, i) {
-            final isActive = i == _currentIndex;
-            _keys[i] ??= GlobalKey();
-            return Container(
-              key: _keys[i],
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              child: AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 250),
-                style: TextStyle(
-                  fontSize: isActive ? 26 : 17,
-                  fontWeight: isActive ? FontWeight.w900 : FontWeight.w500,
-                  color: isActive ? widget.lyricsColor : widget.lyricsColor.withValues(alpha: 0.3),
-                  height: 1.35,
-                  shadows: isActive ? [Shadow(color: Colors.black.withValues(alpha: 0.8), blurRadius: 10)] : [],
-                ),
-                child: Text(_lines[i].text, textAlign: TextAlign.center),
-              ),
-            );
-          },
-        ),
-        Positioned(
-          bottom: 90, right: 16,
-          child: GestureDetector(
-            onTap: widget.onPickImage,
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.55),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-              ),
-              child: const Icon(Icons.photo_library_outlined, color: Colors.white70, size: 20),
+    return ListView.builder(
+      controller: _scroll,
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
+      itemCount: _lines.length,
+      itemBuilder: (ctx, i) {
+        final isActive = i == _currentIndex;
+        _keys[i] ??= GlobalKey();
+        final dist = (i - _currentIndex).abs();
+        return Container(
+          key: _keys[i],
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            _lines[i].text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: isActive ? 22 : (dist == 1 ? 16 : 13),
+              fontWeight: isActive ? FontWeight.w900 : FontWeight.w500,
+              color: isActive
+                  ? widget.lyricsColor
+                  : widget.lyricsColor.withValues(alpha: dist == 1 ? 0.45 : 0.2),
+              height: 1.4,
+              shadows: isActive
+                  ? [Shadow(color: widget.lyricsColor.withValues(alpha: 0.6), blurRadius: 16)]
+                  : null,
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
 
+// ─── Shared ─────────────────────────────────────────────────────────────────
 class _LrcLine {
   final Duration time;
   final String text;
