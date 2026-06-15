@@ -64,11 +64,13 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: flutter build apk --release --split-per-abi
 
-      - name: Build debug APK (fallback, no signing secrets)
+      - name: Build release APK (unsigned fallback)
         if: ${{ env.KEYSTORE_BASE64 == '' }}
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-        run: flutter build apk --debug
+        run: |
+          flutter build apk \
+            --release \
+            --no-tree-shake-icons \
+            --split-per-abi
 
       - name: Upload release APKs
         if: ${{ env.KEYSTORE_BASE64 != '' }}
@@ -80,12 +82,12 @@ jobs:
           path: build/app/outputs/flutter-apk/app-*.apk
           retention-days: 30
 
-      - name: Upload debug APK
+      - name: Upload unsigned release APKs
         if: ${{ env.KEYSTORE_BASE64 == '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: yvl-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: yvl-unsigned-release-apk
+          path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 30
 
       - name: Create GitHub Release
@@ -100,18 +102,17 @@ jobs:
             Automated build from commit ${{ github.sha }}
 
             ### What's new
-            - 🎨 New Doodle theme with animated music notes
-            - 🏠 Redesigned home screen (Songs, Podcasts, Albums)
-            - 🌊 Lyrics: 7 modes (Classic, Bubble, Karaoke, Wave, Neon, Float, Personal)
-            - 🎡 Explore screen: coverflow wheel UI
-            - ⬇️ Download All button on playlists
-            - ✨ Animations throughout
+            - 🎨 New Almond Dark theme (ultra dark with warm almond tones)
+            - 🎤 Lyrics now load correctly (30s tolerance, unknown-duration fix)
+            - 🎵 Lyrics mode bar always visible in full-screen view
+            - 🚫 Hindi songs removed from Home & Explore
+            - 🔍 Null videoId guard added (fixes silent playback failures)
 
             ### Download
             Pick the APK matching your device:
-            - `arm64-v8a` → Modern phones (recommended)
-            - `armeabi-v7a` → Older 32-bit phones
-            - `x86_64` → Emulators / x86 devices
+            - `arm64-v8a` -> Modern phones (recommended)
+            - `armeabi-v7a` -> Older 32-bit phones
+            - `x86_64` -> Emulators / x86 devices
           files: build/app/outputs/flutter-apk/app-*.apk
           draft: false
           prerelease: false
