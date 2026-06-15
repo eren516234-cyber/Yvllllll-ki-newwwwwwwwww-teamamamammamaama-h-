@@ -323,21 +323,27 @@ class StorageService {
     isLoadingNotifier.value = true;
     final current = List<MuzoItem>.from(_favoritesNotifier.value);
     final index = current.indexWhere((s) => s.videoId == result.videoId);
+    final isRemoving = index != -1;
+
+    // Optimistic update — apply locally and persist to cache immediately
+    // so liked songs work even without a server connection (offline-first).
+    if (isRemoving) {
+      current.removeAt(index);
+    } else {
+      current.insert(0, result);
+    }
+    _favoritesNotifier.value = current;
+    await _saveFavoritesToCache(current);
 
     try {
-      if (index != -1) {
-        // Remove
+      if (isRemoving) {
         await _api.removeFromFavorites(result.videoId!);
-        current.removeAt(index);
-        _favoritesNotifier.value = current;
       } else {
-        // Add
         await _api.addToFavorites(result);
-        current.insert(0, result);
-        _favoritesNotifier.value = current;
       }
-    } catch (e) {
-      errorNotifier.value = 'Failed to update favorites: $e';
+    } catch (_) {
+      // API sync failed (offline or server unavailable).
+      // Local state is already saved to Hive cache — no revert needed.
     } finally {
       isLoadingNotifier.value = false;
     }
