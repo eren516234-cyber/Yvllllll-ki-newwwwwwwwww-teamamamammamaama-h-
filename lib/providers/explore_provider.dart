@@ -4,6 +4,17 @@ import 'package:yvl/services/muzo_api_service.dart';
 import 'package:yvl/services/storage_service.dart';
 import 'package:yvl/providers/home_provider.dart';
 
+/// Returns true if the item title/artist contains Devanagari (Hindi) script.
+bool _isHindiContent(MuzoItem item) {
+  final devanagari = RegExp(r'[\u0900-\u097F]');
+  final artistText = (item.artists ?? []).map((a) => a.name).join(' ');
+  return devanagari.hasMatch(item.title) || devanagari.hasMatch(artistText);
+}
+
+/// Filters a list to remove Hindi content and items with null videoId.
+List<MuzoItem> _filterContent(List<MuzoItem> items) =>
+    items.where((i) => i.videoId != null && !_isHindiContent(i)).toList();
+
 final trendingContentProvider = FutureProvider<Map<String, List<MuzoItem>>>((
   ref,
 ) async {
@@ -11,9 +22,10 @@ final trendingContentProvider = FutureProvider<Map<String, List<MuzoItem>>>((
   final apiService = MuzoApiService(storage);
   try {
     final content = await apiService.getTrendingContent();
-    if ((content['songs'] ?? const <MuzoItem>[]).isNotEmpty ||
-        (content['playlists'] ?? const <MuzoItem>[]).isNotEmpty) {
-      return content;
+    final filtered = content.map((k, v) => MapEntry(k, _filterContent(v)));
+    if ((filtered['songs'] ?? const <MuzoItem>[]).isNotEmpty ||
+        (filtered['playlists'] ?? const <MuzoItem>[]).isNotEmpty) {
+      return filtered;
     }
   } catch (_) {}
 
