@@ -20,6 +20,7 @@ import 'package:yvl/widgets/glass_snackbar.dart';
 import 'package:yvl/services/lyrics_service.dart';
 import 'package:yvl/widgets/lyrics_view.dart';
 import 'package:yvl/providers/theme_provider.dart';
+import 'package:yvl/screens/lyrics_screen.dart';
 
 class StandardPlayer extends ConsumerWidget {
   const StandardPlayer({super.key});
@@ -519,6 +520,20 @@ class _GesturePlayerState extends ConsumerState<_GesturePlayer> {
                         ?.color ??
                     Colors.white,
                 onClose: () => setState(() => _showLyrics = false),
+                onOpenFullScreen: () {
+                  final m = widget.mediaItemAsync.value;
+                  if (m == null) return;
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => LyricsScreen(
+                        title: m.title,
+                        artist: m.artist ?? '',
+                        thumbnailUrl: m.artUri?.toString(),
+                        durationSeconds: m.duration?.inSeconds ?? 0,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -983,6 +998,7 @@ class _CloudLyricsOverlay extends StatelessWidget {
   final dynamic audioHandler;
   final Color accentColor;
   final VoidCallback onClose;
+  final VoidCallback? onOpenFullScreen;
 
   const _CloudLyricsOverlay({
     required this.isLoading,
@@ -990,6 +1006,7 @@ class _CloudLyricsOverlay extends StatelessWidget {
     required this.audioHandler,
     required this.accentColor,
     required this.onClose,
+    this.onOpenFullScreen,
   });
 
   @override
@@ -1042,15 +1059,33 @@ class _CloudLyricsOverlay extends StatelessWidget {
                         ),
                       ],
                     ),
-                    IconButton(
-                      icon: Icon(
-                        Icons.close,
-                        color: Theme.of(context).colorScheme.onSurface,
-                        size: 20,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: onClose,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (onOpenFullScreen != null)
+                          IconButton(
+                            icon: Icon(
+                              Icons.open_in_full_rounded,
+                              color: Theme.of(context).colorScheme.onSurface,
+                              size: 18,
+                            ),
+                            tooltip: 'Full screen lyrics',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                            onPressed: onOpenFullScreen,
+                          ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            color: Theme.of(context).colorScheme.onSurface,
+                            size: 20,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(),
+                          onPressed: onClose,
+                        ),
+                      ],
                     ),
                   ],
                 ),
