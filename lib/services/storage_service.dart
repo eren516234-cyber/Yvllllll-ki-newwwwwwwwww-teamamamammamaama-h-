@@ -687,4 +687,9 @@ class StorageService {
       debugPrint('Error saving home cache: $e');
     }
   }
+
+  /// Alias for [saveHomeCache] — fire-and-forget, called without await in home_provider.
+  void setHomeCache(List<HomeSection> sections) {
+    saveHomeCache(sections);
+  }
 }
