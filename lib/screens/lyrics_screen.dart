@@ -119,8 +119,7 @@ class _LyricsScreenState extends ConsumerState<LyricsScreen>
                           : _buildModeView(handler, accent),
                 ),
 
-                if (_lyrics != null)
-                  _ModeBar(
+                _ModeBar(
                     current: _mode,
                     accent: accent,
                     onChanged: (m) {
