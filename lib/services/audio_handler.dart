@@ -245,11 +245,11 @@ class AudioHandler {
         videoId = video.videoId;
       }
 
-      if (videoId == null) {
-        debugPrint('playVideo: missing videoId');
+      if (videoId == null || videoId.isEmpty) {
+        debugPrint('playVideo: missing or empty videoId — skipping');
         final context = navigatorKey.currentContext;
         if (context != null) {
-          showGlassSnackBar(context, 'Cannot play this item: Missing ID');
+          showGlassSnackBar(context, 'This song is not playable right now');
         }
         return;
       }
@@ -264,9 +264,18 @@ class AudioHandler {
       final source = await _createAudioSource(video);
       if (source == null) {
         isLoadingStream.value = false;
+        debugPrint('playVideo: All stream sources exhausted for $videoId');
         final context = navigatorKey.currentContext;
         if (context != null) {
-          showGlassSnackBar(context, 'Failed to extract audio stream');
+          showGlassSnackBar(
+            context,
+            'Could not load this song. Trying next...',
+          );
+        }
+        // Auto-skip to next if in a queue
+        if (_playlist.length > 1) {
+          await _player.seekToNext();
+          await _player.play();
         }
         return;
       }
@@ -416,7 +425,7 @@ class AudioHandler {
   /// Adds a song to the queue without resolving its stream URL.
   /// The stream URL is resolved when the song becomes current.
   Future<void> _addToQueueLazy(MuzoItem result) async {
-    if (result.videoId == null) return;
+    if (result.videoId == null || result.videoId!.isEmpty) return;
     final videoId = result.videoId!;
     final title = result.title;
     final artist = result.displayArtist;

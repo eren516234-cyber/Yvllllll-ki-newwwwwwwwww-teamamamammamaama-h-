@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:yvl/screens/home_screen.dart';
+import 'package:yvl/screens/login_screen.dart';
 import 'package:yvl/services/storage_service.dart';
 import 'package:yvl/services/navigator_key.dart';
 import 'package:yvl/services/notification_service.dart';
@@ -11,7 +12,6 @@ import 'package:yvl/widgets/global_background.dart';
 import 'package:yvl/providers/theme_provider.dart';
 import 'package:yvl/providers/settings_provider.dart';
 import 'package:dynamic_color/dynamic_color.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,24 +63,41 @@ class MyApp extends ConsumerWidget {
         });
 
         final theme = ref.watch(themeProvider);
+        final storage = ref.watch(storageServiceProvider);
+        final showLogin = !storage.hasCompletedOnboarding;
 
         return MaterialApp(
           navigatorKey: navigatorKey,
           title: 'YVL',
           debugShowCheckedModeBanner: false,
           theme: theme,
-          builder: (context, child) {
-            return GlobalBackground(
-              child: MainLayout(
-                key: const ValueKey('main_layout_shell'),
-                child: child!,
-              ),
-            );
+          routes: {
+            '/home': (ctx) => const _HomeWrapper(),
           },
-          // Login removed — direct home access
-          home: const HomeScreen(),
+          builder: (context, child) {
+            return showLogin
+                ? child!
+                : GlobalBackground(
+                    child: MainLayout(
+                      key: const ValueKey('main_layout_shell'),
+                      child: child!,
+                    ),
+                  );
+          },
+          home: showLogin
+              ? const LoginScreen()
+              : const _HomeWrapper(),
         );
       },
     );
+  }
+}
+
+class _HomeWrapper extends StatelessWidget {
+  const _HomeWrapper();
+
+  @override
+  Widget build(BuildContext context) {
+    return const HomeScreen();
   }
 }

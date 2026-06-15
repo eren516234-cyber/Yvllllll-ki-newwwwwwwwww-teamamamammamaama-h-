@@ -194,8 +194,8 @@ class _ArtworkBg extends StatelessWidget {
           ),
         ClipRect(
           child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-            child: Container(color: Colors.black.withValues(alpha: 0.6)),
+            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            child: Container(color: Colors.black.withValues(alpha: 0.55)),
           ),
         ),
       ],

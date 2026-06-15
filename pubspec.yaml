@@ -2,7 +2,7 @@ name: yvl
 description: "YVL — Premium YouTube Music client with sky theme, bubble lyrics, and ultra-dark mode"
 publish_to: 'none'
 
-version: 2.0.1
+version: 2.1.0
 
 environment:
   sdk: ">=3.5.0 <4.0.0"
@@ -48,6 +48,9 @@ dependencies:
   image_picker: ^1.1.2
   app_links: ^3.4.3
   share_plus: ^10.0.0
+  webview_flutter: ^4.10.0
+  webview_flutter_android: ^4.3.0
+  webview_flutter_wkwebview: ^3.17.0
 
 dev_dependencies:
   flutter_test:

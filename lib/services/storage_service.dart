@@ -538,6 +538,25 @@ class StorageService {
     refreshAll();
   }
 
+  // ── Onboarding ─────────────────────────────────────────────────────────────
+  bool get hasCompletedOnboarding =>
+      _settingsBox.get('onboardingComplete', defaultValue: false) == true;
+
+  Future<void> setOnboardingComplete() async {
+    await _settingsBox.put('onboardingComplete', true);
+  }
+
+  // ── Spotify Token ──────────────────────────────────────────────────────────
+  String? get spotifyToken => _settingsBox.get('spotifyToken');
+
+  Future<void> setSpotifyToken(String token) async {
+    await _settingsBox.put('spotifyToken', token);
+  }
+
+  Future<void> clearSpotifyToken() async {
+    await _settingsBox.delete('spotifyToken');
+  }
+
   Future<void> clearUserSession() async {
     await _settingsBox.delete('username');
     await _settingsBox.delete('email');
