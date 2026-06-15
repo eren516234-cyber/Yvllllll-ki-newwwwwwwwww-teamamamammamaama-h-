@@ -198,9 +198,22 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
               child: _buildHeader(context, ref, storage, username),
             ),
 
-            // ── Hero Section ────────────────────────────────────────────
+            // ── Welcome Heading ──────────────────────────────────────────
             SliverToBoxAdapter(
-              child: _buildHero(context, username),
+              child: _buildWelcomeHeading(context, username),
+            ),
+
+            // ── Recent chips from first section ─────────────────────────
+            homeSectionsAsync.maybeWhen(
+              data: (sections) {
+                if (sections.isEmpty || sections.first.items.isEmpty) {
+                  return const SliverToBoxAdapter(child: SizedBox.shrink());
+                }
+                return SliverToBoxAdapter(
+                  child: _buildRecentChips(context, sections.first.items.take(6).toList()),
+                );
+              },
+              orElse: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
             ),
 
             // ── Sections from data ──────────────────────────────────────
@@ -368,67 +381,147 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
     );
   }
 
-  Widget _buildHero(BuildContext context, String username) {
+  Widget _buildWelcomeHeading(BuildContext context, String username) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    final accentColor = theme.colorScheme.primary;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? [
-                  accentColor.withValues(alpha: 0.18),
-                  accentColor.withValues(alpha: 0.05),
-                ]
-              : [
-                  accentColor.withValues(alpha: 0.12),
-                  accentColor.withValues(alpha: 0.03),
-                ],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: accentColor.withValues(alpha: 0.15)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             _greeting(),
             style: TextStyle(
-              color: accentColor,
+              color: theme.colorScheme.primary,
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
+              letterSpacing: 0.8,
             ),
-          ).animate().fadeIn(duration: 400.ms).slideX(begin: -0.1),
+          ).animate().fadeIn(duration: 400.ms),
           const SizedBox(height: 6),
           Text(
             'Find the best\nmusic for you',
             style: TextStyle(
               color: theme.colorScheme.onSurface,
-              fontSize: 26,
+              fontSize: 32,
               fontWeight: FontWeight.w900,
-              height: 1.2,
-              letterSpacing: -0.5,
+              height: 1.1,
+              letterSpacing: -1.2,
             ),
-          ).animate().fadeIn(duration: 500.ms, delay: 100.ms).slideY(begin: 0.1),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              _HeroPill(label: 'Songs', icon: FluentIcons.music_note_2_24_filled, color: accentColor),
-              const SizedBox(width: 8),
-              _HeroPill(label: 'Podcasts', icon: FluentIcons.headphones_24_filled, color: theme.colorScheme.secondary),
-              const SizedBox(width: 8),
-              _HeroPill(label: 'Albums', icon: FluentIcons.album_24_filled, color: const Color(0xFFFF6B6B)),
-            ],
-          ).animate().fadeIn(duration: 500.ms, delay: 200.ms),
+          ).animate().fadeIn(duration: 500.ms, delay: 80.ms).slideY(begin: 0.08),
         ],
       ),
-    ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.05);
+    );
+  }
+
+  Widget _buildRecentChips(BuildContext context, List<HomeItem> items) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Text(
+            'Recently played',
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            physics: const BouncingScrollPhysics(),
+            itemCount: items.length,
+            itemBuilder: (ctx, i) {
+              final item = items[i];
+              final thumb = item.thumbnails.isNotEmpty
+                  ? (item.thumbnails.first['url'] as String? ?? '')
+                  : '';
+              return GestureDetector(
+                onTap: () {
+                  HapticFeedback.lightImpact();
+                  final muzo = MuzoItem(
+                    title: item.title,
+                    resultType: item.type ?? 'song',
+                    isExplicit: false,
+                    artists: item.subtitle != null ? [MuzoArtist(name: item.subtitle!)] : null,
+                    thumbnails: item.thumbnails.map((t) => MuzoThumbnail(
+                      url: (t['url'] as String?) ?? '', width: 0, height: 0)).toList(),
+                    videoId: item.videoId,
+                  );
+                  ref.read(audioHandlerProvider).playVideo(muzo);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: thumb,
+                          width: 38, height: 38,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(
+                            width: 38, height: 38,
+                            color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                            child: Icon(FluentIcons.music_note_2_24_regular,
+                                size: 18, color: theme.colorScheme.primary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 90),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              item.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: theme.colorScheme.onSurface,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (item.subtitle != null) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                item.subtitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
   }
 
   Widget _buildLoading(BuildContext context) {

@@ -172,10 +172,10 @@ class _WheelList extends StatelessWidget {
       child: ListWheelScrollView.useDelegate(
         controller: controller,
         physics: const FixedExtentScrollPhysics(),
-        itemExtent: 88,
-        perspective: 0.003,
-        diameterRatio: 2.8,
-        squeeze: 1.0,
+        itemExtent: 104,
+        perspective: 0.005,
+        diameterRatio: 2.0,
+        squeeze: 1.05,
         onSelectedItemChanged: onIndexChanged,
         childDelegate: ListWheelChildBuilderDelegate(
           childCount: items.length,
@@ -232,7 +232,7 @@ class _WheelItem extends StatelessWidget {
     final thumb = item.thumbnails.isNotEmpty ? item.thumbnails.first.url : '';
     final title = item.title;
     final artist = item.artists?.isNotEmpty == true ? item.artists!.first.name : '';
-    final avatarSize = isSelected ? 64.0 : (distFromCenter == 1 ? 52.0 : 40.0);
+    final avatarSize = isSelected ? 72.0 : (distFromCenter == 1 ? 54.0 : 42.0);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
