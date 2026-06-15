@@ -29,6 +29,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   }
 
   void _playItem(MuzoItem item) {
+    if (item.videoId == null) return;
     HapticFeedback.lightImpact();
     final audioHandler = ref.read(audioHandlerProvider);
     audioHandler.playVideo(item);
