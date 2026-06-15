@@ -24,6 +24,11 @@ import 'package:yvl/providers/player_provider.dart';
 import 'package:yvl/models/muzo_item.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+// Filter helper: returns true if text contains Devanagari (Hindi) script
+bool _isHindiText(String text) => RegExp(r'[\u0900-\u097F]').hasMatch(text);
+bool _shouldShowItem({required String title, required String? artist}) =>
+    !_isHindiText(title) && !_isHindiText(artist ?? '');
+
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -444,6 +449,7 @@ class _HomeTabState extends ConsumerState<_HomeTab> {
               return GestureDetector(
                 onTap: () {
                   HapticFeedback.lightImpact();
+                  if (item.videoId == null) return;
                   final muzo = MuzoItem(
                     title: item.title,
                     resultType: item.type ?? 'song',
@@ -720,6 +726,7 @@ class _HomeSectionCard extends ConsumerWidget {
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
+              if (item.videoId == null) return;
               final muzo = MuzoItem(
                 title: item.title,
                 resultType: item.type ?? 'song',
@@ -794,6 +801,7 @@ class _HomeSectionCard extends ConsumerWidget {
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
+              if (item.videoId == null) return;
               final muzo = MuzoItem(
                 title: item.title,
                 resultType: item.type ?? 'podcast',
@@ -871,6 +879,7 @@ class _HomeSectionCard extends ConsumerWidget {
           return GestureDetector(
             onTap: () {
               HapticFeedback.lightImpact();
+              if (item.videoId == null) return;
               final muzo = MuzoItem(
                 title: item.title,
                 resultType: 'album',
