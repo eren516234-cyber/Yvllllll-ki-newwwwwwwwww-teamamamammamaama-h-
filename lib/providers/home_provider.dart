@@ -37,14 +37,16 @@ List<HomeSection> buildInstantHomeSections() {
 
   return [
     HomeSection(title: 'Songs', items: [
-      song('gvyUuxdRdR4', 'Kesariya', 'Arijit Singh'),
       song('JGwWNGJdvx8', 'Shape of You', 'Ed Sheeran'),
-      song('KUpwupYj_tY', 'Chaleya', 'Arijit Singh'),
-      song('kJQP7kiw5Fk', 'Despacito', 'Luis Fonsi'),
       song('fHI8X4OXluQ', 'Blinding Lights', 'The Weeknd'),
       song('TUVcZfQe-Kw', 'Levitating', 'Dua Lipa'),
       song('H5v3kku4y6Q', 'As It Was', 'Harry Styles'),
-      song('VAdGW7QDJiU', 'Apna Bana Le', 'Arijit Singh'),
+      song('kJQP7kiw5Fk', 'Despacito', 'Luis Fonsi'),
+      song('YQHsXMglC9A', 'Hello', 'Adele'),
+      song('kffacxfA7G4', 'Uptown Funk', 'Bruno Mars'),
+      song('450p7goxZqg', 'Uptown Funk (ft. Bruno Mars)', 'Mark Ronson'),
+      song('Zi_XLOBDo_Y', 'Perfect', 'Ed Sheeran'),
+      song('JRfuAukYTKg', 'bad guy', 'Billie Eilish'),
     ]),
     HomeSection(title: 'Podcasts', items: [
       podcast('4xDzrJKXOOY', 'Deep Focus Mix', 'YVL Radio'),
@@ -58,7 +60,7 @@ List<HomeSection> buildInstantHomeSections() {
       album('kPa7bsKwL-c', 'Flowers (Album)', 'Miley Cyrus'),
       album('oygrmJFKYZY', 'Future Nostalgia', 'Dua Lipa'),
       album('qN4ooNx77u0', 'When We All Fall Asleep', 'Billie Eilish'),
-      album('Y2zc2IeVX_g', 'Arijit Singh Hits', 'Arijit Singh'),
+      album('PLDIoUOhQQPlXr63Sg2xRcZBpxBq0VQEOV', 'Anti-Hero Era', 'Taylor Swift'),
       album('OPf0YbXqDm0', 'Uptown Special', 'Mark Ronson'),
       album('09R8_2nJtjg', 'V', 'Maroon 5'),
     ]),
