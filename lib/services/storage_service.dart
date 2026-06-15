@@ -130,14 +130,18 @@ class StorageService {
       _subscriptionsNotifier.value = userData.subscriptions;
       _saveSubscriptionsToCache(userData.subscriptions);
 
-      // Update Playlists
-      _playlistsNotifier.value = userData.playlists;
-      _savePlaylistsToCache(userData.playlists);
+      // Merge server playlists with any locally-created but not-yet-synced
+      // playlists (e.g. empty playlists that haven't had a song added yet).
+      final serverPlaylists = userData.playlists;
+      final serverNames = serverPlaylists.map((p) => p.name).toSet();
+      final localOnly = _playlistsNotifier.value
+          .where((p) => !serverNames.contains(p.name))
+          .toList();
+      final merged = [...serverPlaylists, ...localOnly];
+      _playlistsNotifier.value = merged;
+      _savePlaylistsToCache(merged);
     } catch (e) {
       debugPrint('Error refreshing data: $e');
-      // Fallback to individual calls if consolidated fails?
-      // Or just log error. The requirement implies replacing it.
-      // We can keep individual calls as fallback if we wanted resilience, but let's stick to the plan.
     } finally {
       isLoadingNotifier.value = false;
     }
@@ -177,7 +181,6 @@ class StorageService {
       await _api.addToHistory(result);
     } catch (e) {
       debugPrint('Error adding to history API: $e');
-      // We don't set errorNotifier here to avoid spamming user on every song play
     }
   }
 
@@ -194,11 +197,6 @@ class StorageService {
       await _api.removeFromHistory(videoId);
     } catch (e) {
       errorNotifier.value = 'Failed to remove from history: $e';
-      // Revert optimistic update?
-      // For history, maybe not strictly necessary to revert as it's less critical,
-      // but strictly speaking we should.
-      // However, fetching the item back is hard without knowing what it was exactly (we removed it).
-      // We could keep a reference to the removed item.
     } finally {
       isLoadingNotifier.value = false;
     }
@@ -220,8 +218,10 @@ class StorageService {
   // Playlists
 
   Future<void> createPlaylist(String name) async {
-    // Playlists are auto-created by the API when a song is added.
-    // Just update local state optimistically.
+    // Optimistic local update — the server auto-creates the playlist when the
+    // first song is added via addToPlaylist (POST /playlists/{name}).
+    // We persist locally now so the playlist shows in the UI immediately and
+    // survives an app restart even before the first song is synced.
     final current = List<Playlist>.from(_playlistsNotifier.value);
     if (!current.any((p) => p.name == name)) {
       current.add(Playlist(
@@ -232,7 +232,7 @@ class StorageService {
         songs: [],
       ));
       _playlistsNotifier.value = current;
-      _savePlaylistsToCache(current);
+      await _savePlaylistsToCache(current);
     }
   }
 
@@ -253,31 +253,50 @@ class StorageService {
 
 
   Future<void> addToPlaylist(String name, MuzoItem result) async {
-    final current = List<Playlist>.from(_playlistsNotifier.value);
-    final playlistIndex = current.indexWhere((p) => p.name == name);
+    var current = List<Playlist>.from(_playlistsNotifier.value);
+    var playlistIndex = current.indexWhere((p) => p.name == name);
+
+    // Bug fix: if the playlist isn't in local state yet (e.g. race condition
+    // or stale cache), create it locally first so the add can proceed.
+    if (playlistIndex == -1) {
+      debugPrint('StorageService: Playlist "$name" not found locally — auto-creating');
+      current.add(Playlist(
+        id: 0,
+        name: name,
+        createdAt: DateTime.now().toIso8601String(),
+        songCount: 0,
+        songs: [],
+      ));
+      _playlistsNotifier.value = current;
+      await _savePlaylistsToCache(current);
+      // Refresh index after creating
+      current = List<Playlist>.from(_playlistsNotifier.value);
+      playlistIndex = current.indexWhere((p) => p.name == name);
+    }
 
     if (playlistIndex != -1) {
       final playlist = current[playlistIndex];
       final songs = List<MuzoItem>.from(playlist.songs);
 
       if (!songs.any((s) => s.videoId == result.videoId)) {
-        isLoadingNotifier.value = true;
+        // Optimistic local update first so the UI responds immediately
+        songs.add(result);
+        current[playlistIndex] = Playlist(
+          id: playlist.id,
+          name: playlist.name,
+          createdAt: playlist.createdAt,
+          songCount: songs.length,
+          songs: songs,
+        );
+        _playlistsNotifier.value = current;
+        await _savePlaylistsToCache(current);
+
+        // Then sync to server (server auto-creates the playlist if needed)
         try {
           await _api.addToPlaylist(name, result);
-          songs.add(result);
-          current[playlistIndex] = Playlist(
-            id: playlist.id,
-            name: playlist.name,
-            createdAt: playlist.createdAt,
-            songCount: songs.length,
-            songs: songs,
-          );
-          _playlistsNotifier.value = current;
-          _savePlaylistsToCache(current);
         } catch (e) {
-          errorNotifier.value = 'Failed to add to playlist: $e';
-        } finally {
-          isLoadingNotifier.value = false;
+          debugPrint('StorageService: addToPlaylist API error — $e');
+          errorNotifier.value = 'Failed to sync playlist: $e';
         }
       }
     }
@@ -655,12 +674,13 @@ class StorageService {
             .toList();
       } catch (e) {
         debugPrint('Error loading home cache: $e');
+        return [];
       }
     }
     return [];
   }
 
-  Future<void> setHomeCache(List<HomeSection> sections) async {
+  Future<void> saveHomeCache(List<HomeSection> sections) async {
     try {
       await _homeBox.put('sections', sections.map((e) => e.toJson()).toList());
     } catch (e) {

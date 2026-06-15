@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,11 +23,29 @@ import 'package:yvl/widgets/lyrics_view.dart';
 import 'package:yvl/providers/theme_provider.dart';
 import 'package:yvl/screens/lyrics_screen.dart';
 
-class StandardPlayer extends ConsumerWidget {
+class StandardPlayer extends ConsumerStatefulWidget {
   const StandardPlayer({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StandardPlayer> createState() => _StandardPlayerState();
+}
+
+class _StandardPlayerState extends ConsumerState<StandardPlayer> {
+  bool _showSwipeIcon = false;
+  IconData _swipeIcon = Icons.skip_next;
+
+  void _triggerSwipeAnimation(IconData icon) {
+    setState(() {
+      _showSwipeIcon = true;
+      _swipeIcon = icon;
+    });
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) setState(() => _showSwipeIcon = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final mediaItemAsync = ref.watch(currentMediaItemProvider);
 
@@ -47,10 +66,26 @@ class StandardPlayer extends ConsumerWidget {
     final mediaItem = mediaItemAsync.value;
     final artUri = mediaItem?.artUri;
 
-    return Stack(
-      children: [
-        Stack(
-          children: [
+    return GestureDetector(
+      // Swipe left → next, swipe right → previous.
+      // High velocity threshold avoids conflict with the progress bar's own drag.
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity == null) return;
+        final handler = ref.read(audioHandlerProvider);
+        if (details.primaryVelocity! < -300) {
+          handler.skipToNext();
+          HapticFeedback.mediumImpact();
+          _triggerSwipeAnimation(FluentIcons.next_24_filled);
+        } else if (details.primaryVelocity! > 300) {
+          handler.skipToPrevious();
+          HapticFeedback.mediumImpact();
+          _triggerSwipeAnimation(FluentIcons.previous_24_filled);
+        }
+      },
+      child: Stack(
+        children: [
+          Stack(
+            children: [
             if (artUri != null)
               SizedBox.expand(
                 child: ImageFiltered(
@@ -278,8 +313,34 @@ class StandardPlayer extends ConsumerWidget {
             ],
           ),
         ),
+
+        // Swipe feedback animation overlay
+        IgnorePointer(
+          child: AnimatedOpacity(
+            opacity: _showSwipeIcon ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 200),
+            child: Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: (Theme.of(context).brightness == Brightness.dark
+                          ? Colors.black
+                          : Colors.white)
+                      .withValues(alpha: 0.55),
+                  shape: BoxShape.circle,
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Icon(
+                  _swipeIcon,
+                  color: Theme.of(context).colorScheme.onSurface,
+                  size: 48,
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
-    );
+    ),
+  );
   }
 }
 

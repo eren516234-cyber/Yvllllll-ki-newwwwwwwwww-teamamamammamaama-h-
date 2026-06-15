@@ -63,7 +63,7 @@ class Lyrics {
 final lyricsServiceProvider = Provider((ref) => LyricsService());
 
 class LyricsService {
-  static const String _baseUrl = 'https://lrclib.net/api';
+  static const String _lrcLibBaseUrl = 'https://lrclib.net/api';
 
   Future<Lyrics?> fetchLyrics(
     String trackName,
@@ -73,32 +73,53 @@ class LyricsService {
     final cleanTrack = _cleanTitle(trackName);
     final cleanArtist = _cleanTitle(artistName);
 
-    // 1. Try Atomix Lyrics API primary
+    // 1. Try Atomix Lyrics API (primary — supports karaoke word-level timing)
+    final atomixResult = await _tryAtomix(cleanTrack, cleanArtist, duration);
+    if (atomixResult != null) return atomixResult;
+
+    // 2. Fallback: LRCLIB exact match
+    final lrcLibResult = await _tryLrcLib(cleanTrack, cleanArtist, duration);
+    if (lrcLibResult != null) return lrcLibResult;
+
+    // 3. Fallback: PaxSenix lyrics API
+    final paxResult = await _tryPaxSenix(cleanTrack, cleanArtist, duration);
+    if (paxResult != null) return paxResult;
+
+    // 4. Fallback: lyrics.ovh (plain lyrics only, no sync)
+    final ovhResult = await _tryLyricsOvh(cleanTrack, cleanArtist);
+    if (ovhResult != null) return ovhResult;
+
+    // 5. Last resort: LRCLIB search with fuzzy duration matching
+    return _searchLyrics(cleanTrack, cleanArtist, duration);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Provider implementations
+  // ---------------------------------------------------------------------------
+
+  Future<Lyrics?> _tryAtomix(String track, String artist, int duration) async {
     try {
       final atomixUri = Uri.parse('https://lyricsplus.atomix.one/v2/lyrics/get').replace(
-        queryParameters: {'title': cleanTrack, 'artist': cleanArtist, 'duration': duration.toString()},
+        queryParameters: {'title': track, 'artist': artist, 'duration': duration.toString()},
       );
 
-      debugPrint('LyricsService: Requesting Atomix GET $atomixUri');
-      final atomixRes = await http.get(atomixUri).timeout(const Duration(seconds: 10));
+      debugPrint('LyricsService [Atomix]: GET $atomixUri');
+      final res = await http.get(atomixUri).timeout(const Duration(seconds: 10));
 
-      if (atomixRes.statusCode == 200) {
-        final atomixData = json.decode(atomixRes.body);
-        final String responseType = atomixData['type'] ?? '';
-        // Handle both 'Line' (line-level) and 'Word' (word-level syllable) responses
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        final String responseType = data['type'] ?? '';
         final bool isSupported = (responseType == 'Line' || responseType == 'Word') &&
-            atomixData['lyrics'] != null;
+            data['lyrics'] != null;
 
         if (isSupported) {
-          final List<dynamic> lines = atomixData['lyrics'];
-          
+          final List<dynamic> lines = data['lyrics'];
           final StringBuffer syncedBuffer = StringBuffer();
           final StringBuffer plainBuffer = StringBuffer();
           final List<KaraokeLine>? karaokeLines = responseType == 'Word' ? [] : null;
 
           for (var line in lines) {
             final int rawMs = line['time'] ?? 0;
-            // No offset — use raw timestamps from API
             final String text = (line['text'] as String? ?? '').trim();
             if (text.isEmpty) continue;
 
@@ -110,7 +131,6 @@ class LyricsService {
             syncedBuffer.writeln('[$minutes:$seconds.$hundredths] $text');
             plainBuffer.writeln(text);
 
-            // For Word-type: parse syllable-level data into KaraokeLine
             if (responseType == 'Word') {
               final List<dynamic> syllabi = (line['syllabus'] as List<dynamic>?) ?? [];
               final List<KaraokeSyllable> syllables = syllabi.map((s) {
@@ -131,55 +151,118 @@ class LyricsService {
           }
 
           if (plainBuffer.isNotEmpty) {
-             debugPrint('LyricsService: Found lyrics via Atomix API (type: $responseType)');
-             return Lyrics(
-               id: 0,
-               name: cleanTrack,
-               trackName: cleanTrack,
-               artistName: cleanArtist,
-               albumName: '',
-               duration: duration,
-               instrumental: false,
-               plainLyrics: plainBuffer.toString(),
-               syncedLyrics: syncedBuffer.toString(),
-               karaokeLines: karaokeLines,
-             );
+            debugPrint('LyricsService [Atomix]: Found (type: $responseType)');
+            return Lyrics(
+              id: 0,
+              name: track,
+              trackName: track,
+              artistName: artist,
+              albumName: '',
+              duration: duration,
+              instrumental: false,
+              plainLyrics: plainBuffer.toString(),
+              syncedLyrics: syncedBuffer.toString(),
+              karaokeLines: karaokeLines,
+            );
           }
         }
       }
     } catch (e) {
-      debugPrint('LyricsService: Error in Atomix GET: $e');
+      debugPrint('LyricsService [Atomix]: Error — $e');
     }
+    return null;
+  }
 
-    // 2. Fallback to LRCLIB Try exact match with cleaned metadata
+  Future<Lyrics?> _tryLrcLib(String track, String artist, int duration) async {
     try {
-      final uri = Uri.parse('$_baseUrl/get').replace(
-        queryParameters: {'track_name': cleanTrack, 'artist_name': cleanArtist},
+      final uri = Uri.parse('$_lrcLibBaseUrl/get').replace(
+        queryParameters: {'track_name': track, 'artist_name': artist},
       );
 
-      debugPrint('LyricsService: Requesting LRCLIB GET $uri');
-
+      debugPrint('LyricsService [LRCLIB]: GET $uri');
       final response = await http.get(uri).timeout(const Duration(seconds: 10));
-      debugPrint('LyricsService: LRCLIB GET Response ${response.statusCode}');
+      debugPrint('LyricsService [LRCLIB]: status ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['plainLyrics'] != null || data['syncedLyrics'] != null) {
-          debugPrint('LyricsService: Found exact match via LRCLIB GET');
+          debugPrint('LyricsService [LRCLIB]: Found exact match');
           return Lyrics.fromJson(data);
         }
-      } else if (response.statusCode == 404) {
-        // Fallback to search
-        debugPrint('LyricsService: LRCLIB GET failed (404), falling back to SEARCH');
-        return _searchLyrics(cleanTrack, cleanArtist, duration);
       }
-
-      return null;
     } catch (e) {
-      debugPrint('LyricsService: Error in LRCLIB GET: $e');
-      // Last resort try search on error too
-      return _searchLyrics(cleanTrack, cleanArtist, duration);
+      debugPrint('LyricsService [LRCLIB]: Error — $e');
     }
+    return null;
+  }
+
+  Future<Lyrics?> _tryPaxSenix(String track, String artist, int duration) async {
+    try {
+      final uri = Uri.parse('https://api.paxsenix.biz.id/lyrics').replace(
+        queryParameters: {'title': track, 'artist': artist},
+      );
+
+      debugPrint('LyricsService [PaxSenix]: GET $uri');
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        // PaxSenix returns {status: bool, lrc: "...", lyrics: "..."}
+        final String? lrc = data['lrc'] as String?;
+        final String? plain = data['lyrics'] as String?;
+
+        if ((lrc != null && lrc.isNotEmpty) || (plain != null && plain.isNotEmpty)) {
+          debugPrint('LyricsService [PaxSenix]: Found lyrics');
+          return Lyrics(
+            id: 0,
+            name: track,
+            trackName: track,
+            artistName: artist,
+            albumName: '',
+            duration: duration,
+            instrumental: false,
+            plainLyrics: plain ?? _stripLrcTimestamps(lrc ?? ''),
+            syncedLyrics: lrc ?? '',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('LyricsService [PaxSenix]: Error — $e');
+    }
+    return null;
+  }
+
+  Future<Lyrics?> _tryLyricsOvh(String track, String artist) async {
+    try {
+      final encodedArtist = Uri.encodeComponent(artist);
+      final encodedTrack = Uri.encodeComponent(track);
+      final uri = Uri.parse('https://api.lyrics.ovh/v1/$encodedArtist/$encodedTrack');
+
+      debugPrint('LyricsService [lyrics.ovh]: GET $uri');
+      final response = await http.get(uri).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final String? lyrics = data['lyrics'] as String?;
+        if (lyrics != null && lyrics.trim().isNotEmpty) {
+          debugPrint('LyricsService [lyrics.ovh]: Found plain lyrics');
+          return Lyrics(
+            id: 0,
+            name: track,
+            trackName: track,
+            artistName: artist,
+            albumName: '',
+            duration: 0,
+            instrumental: false,
+            plainLyrics: lyrics,
+            syncedLyrics: '',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('LyricsService [lyrics.ovh]: Error — $e');
+    }
+    return null;
   }
 
   Future<Lyrics?> _searchLyrics(
@@ -189,18 +272,17 @@ class LyricsService {
   ) async {
     try {
       final uri = Uri.parse(
-        '$_baseUrl/search',
+        '$_lrcLibBaseUrl/search',
       ).replace(queryParameters: {'track_name': track, 'artist_name': artist});
-      debugPrint('LyricsService: Searching $uri');
+      debugPrint('LyricsService [LRCLIB Search]: $uri');
 
-      final response = await http.get(uri);
+      final response = await http.get(uri).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final List<dynamic> list = json.decode(response.body);
-        debugPrint('LyricsService: Search returned ${list.length} results');
+        debugPrint('LyricsService [LRCLIB Search]: ${list.length} results');
 
         if (list.isEmpty) return null;
 
-        // Find best match based on duration
         Lyrics? bestMatch;
         int minDiff = 1000000;
 
@@ -208,36 +290,44 @@ class LyricsService {
           final l = Lyrics.fromJson(item);
           final diff = (l.duration - duration).abs();
 
-          // Check if it has lyrics
           if (l.plainLyrics.isEmpty && l.syncedLyrics.isEmpty) continue;
 
-          // Allow up to 3 seconds difference for "perfect" match, otherwise find closest
           if (diff < minDiff) {
             minDiff = diff;
             bestMatch = l;
           }
         }
 
-        // Only return if within acceptable range (30s), or skip check when duration unknown
         if ((duration == 0 || minDiff <= 30) && bestMatch != null) {
           debugPrint(
-            'LyricsService: Found best match "${bestMatch.trackName}" with diff ${minDiff}s',
+            'LyricsService [LRCLIB Search]: Best match "${bestMatch.trackName}" diff ${minDiff}s',
           );
           return bestMatch;
         } else {
           debugPrint(
-            'LyricsService: No match within duration tolerance (Best diff: ${minDiff}s)',
+            'LyricsService [LRCLIB Search]: No match within tolerance (best diff: ${minDiff}s)',
           );
         }
       } else {
-        debugPrint(
-          'LyricsService: Search failed with status ${response.statusCode}',
-        );
+        debugPrint('LyricsService [LRCLIB Search]: status ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint('LyricsService: Search Error: $e');
+      debugPrint('LyricsService [LRCLIB Search]: Error — $e');
     }
     return null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  /// Strip LRC timestamp tags to produce plain text from an LRC string.
+  String _stripLrcTimestamps(String lrc) {
+    return lrc
+        .split('\n')
+        .map((line) => line.replaceAll(RegExp(r'^\[\d+:\d+\.\d+\]\s*'), ''))
+        .where((line) => line.trim().isNotEmpty)
+        .join('\n');
   }
 
   String _cleanTitle(String text) {
@@ -245,18 +335,14 @@ class LyricsService {
     if (text.isEmpty) return text;
 
     try {
-      // Remove common patterns
       var clean = text;
 
-      // Remove (Official Video), [Official Audio], etc.
-      // Using standard Dart RegExp constructor for case insensitivity
       final videoPattern = RegExp(
         r'\s*[\(\[](official|video|audio|lyrics|lyric|hd|hq|4k|mv|music video|full audio)[\)\]]',
         caseSensitive: false,
       );
       clean = clean.replaceAll(videoPattern, '');
 
-      // Remove "ft.", "feat."
       final featPattern = RegExp(
         r'\s+(ft\.|feat\.|featuring)\s+',
         caseSensitive: false,
@@ -265,15 +351,14 @@ class LyricsService {
         clean = clean.split(featPattern).first;
       }
 
-      // Remove " - Topic" from artist strings
       clean = clean.replaceAll(' - Topic', '');
 
       final result = clean.trim();
-      debugPrint('LyricsService: Cleaned title: "$result"');
+      debugPrint('LyricsService: Cleaned: "$result"');
       return result;
     } catch (e) {
-      debugPrint('LyricsService: Error cleaning title "$text": $e');
-      return text; // Return original if cleaning fails
+      debugPrint('LyricsService: Error cleaning "$text": $e');
+      return text;
     }
   }
 }

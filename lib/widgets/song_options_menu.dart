@@ -130,6 +130,38 @@ class SongOptionsMenu extends ConsumerWidget {
     ref.read(globalBottomSheetProvider.notifier).state = null;
   }
 
+  /// Show a floating download offer snackbar after a song is liked.
+  void _offerDownload(BuildContext context, WidgetRef ref) {
+    Future.delayed(const Duration(milliseconds: 700), () {
+      final ctx = navigatorKey.currentContext;
+      if (ctx == null) return;
+      try {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          SnackBar(
+            content: const Text('Download for offline listening?'),
+            action: SnackBarAction(
+              label: 'Download',
+              onPressed: () {
+                ref.read(downloadProvider.notifier).startDownload(result).then((success) {
+                  final c = navigatorKey.currentContext;
+                  if (c != null) {
+                    showGlassSnackBar(c, success ? 'Download complete' : 'Download failed');
+                  }
+                });
+              },
+            ),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      } catch (_) {
+        // ScaffoldMessenger not available in current context — skip silently
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final storage = ref.watch(storageServiceProvider);
@@ -314,23 +346,39 @@ class SongOptionsMenu extends ConsumerWidget {
                 }
               },
             ),
-            _buildMenuOption(
-              context,
-              icon: isFav
-                  ? FluentIcons.heart_24_filled
-                  : FluentIcons.heart_24_regular,
-              label: isFav ? 'Remove from favorites' : 'Add to favorites',
-              iconColor: isFav ? Colors.red : Theme.of(context).colorScheme.onSurface,
-              onTap: () {
-                onClose?.call();
-                storage.toggleFavorite(result);
-                final ctx = navigatorKey.currentContext;
-                if (ctx != null) {
-                  showGlassSnackBar(
-                    ctx,
-                    isFav ? 'Removed from favorites' : 'Added to favorites',
-                  );
-                }
+            // Favorite with animated heart icon and download offer
+            TweenAnimationBuilder<double>(
+              tween: Tween<double>(begin: 1.0, end: isFav ? 1.15 : 1.0),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.elasticOut,
+              builder: (context, scale, child) {
+                return _buildMenuOption(
+                  context,
+                  icon: isFav
+                      ? FluentIcons.heart_24_filled
+                      : FluentIcons.heart_24_regular,
+                  label: isFav ? 'Remove from favorites' : 'Add to favorites',
+                  iconColor: isFav ? Colors.red : Theme.of(context).colorScheme.onSurface,
+                  iconScale: scale,
+                  onTap: () {
+                    onClose?.call();
+                    final wasLiked = isFav;
+                    storage.toggleFavorite(result);
+                    final ctx = navigatorKey.currentContext;
+                    if (ctx != null) {
+                      showGlassSnackBar(
+                        ctx,
+                        wasLiked ? 'Removed from favorites' : 'Added to favorites',
+                      );
+                      // Offer download when user likes a song they haven't downloaded
+                      if (!wasLiked &&
+                          result.videoId != null &&
+                          !storage.isDownloaded(result.videoId!)) {
+                        _offerDownload(ctx, ref);
+                      }
+                    }
+                  },
+                );
               },
             ),
             if (fromHistory) ...[
@@ -405,6 +453,7 @@ class SongOptionsMenu extends ConsumerWidget {
     required String label,
     required VoidCallback onTap,
     Color? iconColor,
+    double iconScale = 1.0,
   }) {
     final effectiveIconColor = iconColor ?? Theme.of(context).colorScheme.onSurface;
     return InkWell(
@@ -416,7 +465,10 @@ class SongOptionsMenu extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
         child: Row(
           children: [
-            Icon(icon, color: effectiveIconColor, size: 24),
+            Transform.scale(
+              scale: iconScale,
+              child: Icon(icon, color: effectiveIconColor, size: 24),
+            ),
             const SizedBox(width: 16),
             Text(
               label,

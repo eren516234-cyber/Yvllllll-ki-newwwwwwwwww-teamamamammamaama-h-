@@ -119,13 +119,17 @@ class _PlaylistSelectionDialogState
           child: Text('Cancel', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         ),
         TextButton(
-          onPressed: () {
-            if (controller.text.isNotEmpty) {
-              storage.createPlaylist(controller.text);
-              // Automatically add the song to the new playlist
-              storage.addToPlaylist(controller.text, widget.song);
+          onPressed: () async {
+            final name = controller.text.trim();
+            if (name.isNotEmpty) {
               Navigator.pop(context);
-              showGlassSnackBar(context, 'Added to ${controller.text}');
+              // Await createPlaylist so the local state is updated before
+              // addToPlaylist checks for the playlist's existence.
+              await storage.createPlaylist(name);
+              await storage.addToPlaylist(name, widget.song);
+              if (context.mounted) {
+                showGlassSnackBar(context, 'Added to $name');
+              }
             }
           },
           child: Text(
