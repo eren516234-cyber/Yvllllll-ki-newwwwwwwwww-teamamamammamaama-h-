@@ -352,6 +352,7 @@ class SettingsScreen extends ConsumerWidget {
       case ThemeType.sky: return 'Sky (Animated)';
       case ThemeType.doodle: return 'Doodle (Animated)';
       case ThemeType.cozyNight: return 'Cozy Night Studio';
+      case ThemeType.almondDark: return 'Almond Dark';
     }
   }
 
@@ -412,6 +413,11 @@ class SettingsScreen extends ConsumerWidget {
                     _buildThemeCardWide(context, ref, ThemeType.cozyNight, cur,
                         icon: Icons.nights_stay_rounded, label: 'Cozy Night', sublabel: 'Warm amber studio with rain & lamp glow',
                         color1: const Color(0xFF100A06), color2: const Color(0xFFFFB347), color3: const Color(0xFF3D2010)),
+                    const SizedBox(height: 12),
+                    // Row: Almond Dark
+                    _buildThemeCardWide(context, ref, ThemeType.almondDark, cur,
+                        icon: Icons.coffee_rounded, label: 'Almond Dark', sublabel: 'Ultra dark with warm almond & mocha tones',
+                        color1: const Color(0xFF0C0A08), color2: const Color(0xFFC8A87A), color3: const Color(0xFF3A2E1E)),
                   ],
                 ),
               ),
