@@ -8,6 +8,7 @@ import 'package:yvl/screens/settings/components/font_picker_dialog.dart';
 import 'package:yvl/providers/player_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:yvl/screens/about_screen.dart';
+import 'package:yvl/screens/connect_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -169,6 +170,189 @@ class SettingsScreen extends ConsumerWidget {
                   );
                 },
               ),
+
+              // Connect Services
+              Consumer(
+                builder: (context, ref, _) {
+                  final storage = ref.watch(storageServiceProvider);
+                  return ValueListenableBuilder(
+                    valueListenable: storage.settingsListenable,
+                    builder: (context, box, _) {
+                      return _buildSection(context, 'Connect Services', [
+                        ListTile(
+                          leading: Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFF0000),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 18),
+                          ),
+                          title: Text('YouTube Music', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text(
+                            storage.ytmCookie != null ? 'Connected ✓' : 'Connect for personalized content',
+                            style: TextStyle(
+                              color: storage.ytmCookie != null ? Colors.green : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: Icon(FluentIcons.open_24_regular, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5), size: 18),
+                          onTap: () {
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => const _ConnectServicesRoute(),
+                            ));
+                          },
+                        ),
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        ListTile(
+                          leading: Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1DB954),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 18),
+                          ),
+                          title: Text('Spotify Import', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text(
+                            storage.isSpotifyConnected ? 'Connected ✓' : 'Import your Spotify playlists',
+                            style: TextStyle(
+                              color: storage.isSpotifyConnected ? Colors.green : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                              fontSize: 12,
+                            ),
+                          ),
+                          trailing: Icon(FluentIcons.open_24_regular, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5), size: 18),
+                          onTap: () {
+                            Navigator.of(context).push(MaterialPageRoute(
+                              builder: (_) => const _ConnectServicesRoute(),
+                            ));
+                          },
+                        ),
+                      ]);
+                    },
+                  );
+                },
+              ),
+
+              // Equalizer
+              Consumer(
+                builder: (context, ref, _) {
+                  final storage = ref.watch(storageServiceProvider);
+                  return ValueListenableBuilder(
+                    valueListenable: storage.settingsListenable,
+                    builder: (context, box, _) {
+                      return _buildSection(context, 'Equalizer 🎚️', [
+                        ListTile(
+                          title: Text('EQ Preset', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text(storage.eqPreset, style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Icon(FluentIcons.settings_24_regular, color: Theme.of(context).colorScheme.onSurface),
+                          onTap: () => _showEqDialog(context, storage),
+                        ),
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        ListTile(
+                          title: Text('Crossfade Duration', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('${storage.crossfadeDuration.toStringAsFixed(0)}s between tracks', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Icon(FluentIcons.music_note_2_24_regular, color: Theme.of(context).colorScheme.onSurface),
+                          onTap: () => _showCrossfadeDialog(context, storage),
+                        ),
+                      ]);
+                    },
+                  );
+                },
+              ),
+
+              // Shortcuts & Extras
+              Consumer(
+                builder: (context, ref, _) {
+                  final storage = ref.watch(storageServiceProvider);
+                  return ValueListenableBuilder(
+                    valueListenable: storage.settingsListenable,
+                    builder: (context, box, _) {
+                      return _buildSection(context, 'Shortcuts & Extras ⚡', [
+                        ListTile(
+                          title: Text('English Only Mode', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('Filter out non-English songs from Home', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Switch(
+                            value: storage.englishOnlyMode,
+                            onChanged: (v) => storage.setEnglishOnlyMode(v),
+                            activeThumbColor: Theme.of(context).colorScheme.primary,
+                            activeTrackColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        ListTile(
+                          title: Text('Shuffle on Startup', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('Auto-shuffle queue when app starts', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Switch(
+                            value: storage.shuffleOnStartup,
+                            onChanged: (v) => storage.setShuffleOnStartup(v),
+                            activeThumbColor: Theme.of(context).colorScheme.primary,
+                            activeTrackColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        ListTile(
+                          title: Text('Data Saver Mode', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('Reduce image quality and preloading', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Switch(
+                            value: storage.dataSaverMode,
+                            onChanged: (v) => storage.setDataSaverMode(v),
+                            activeThumbColor: Theme.of(context).colorScheme.primary,
+                            activeTrackColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        ListTile(
+                          title: Text('Default Sleep Timer', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('${storage.defaultSleepTimerMinutes} minutes', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Icon(FluentIcons.timer_24_filled, color: Theme.of(context).colorScheme.onSurface),
+                          onTap: () => _showSleepTimerDialog(context, storage),
+                        ),
+                        Divider(height: 1, color: Theme.of(context).dividerColor),
+                        ListTile(
+                          title: Text('Rich Notifications', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                          subtitle: Text('Show album art in notification', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                          trailing: Switch(
+                            value: storage.richNotifications,
+                            onChanged: (v) => storage.setRichNotifications(v),
+                            activeThumbColor: Theme.of(context).colorScheme.primary,
+                            activeTrackColor: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                          ),
+                        ),
+                      ]);
+                    },
+                  );
+                },
+              ),
+
+              // Cache & Privacy
+              _buildSection(context, 'Cache & Privacy 🗑️', [
+                ListTile(
+                  leading: Icon(Icons.delete_outline_rounded, color: Theme.of(context).colorScheme.onSurface, size: 20),
+                  title: Text('Clear History', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  subtitle: Text('Remove all played songs from history', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                  onTap: () => _showClearDialog(context, ref, 'history'),
+                ),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
+                ListTile(
+                  leading: Icon(Icons.heart_broken_outlined, color: Theme.of(context).colorScheme.onSurface, size: 20),
+                  title: Text('Clear Liked Songs', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  subtitle: Text('Remove all liked songs', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                  onTap: () => _showClearDialog(context, ref, 'favorites'),
+                ),
+                Divider(height: 1, color: Theme.of(context).dividerColor),
+                ListTile(
+                  leading: Icon(Icons.cached_rounded, color: Theme.of(context).colorScheme.onSurface, size: 20),
+                  title: Text('Clear Home Cache', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+                  subtitle: Text('Force fresh home screen content', style: TextStyle(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 12)),
+                  onTap: () {
+                    ref.read(storageServiceProvider).setHomeCache([]);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Home cache cleared'), duration: Duration(seconds: 2)),
+                    );
+                  },
+                ),
+              ]),
 
               // About section
               _buildSection(context, 'About', [
@@ -570,6 +754,131 @@ class SettingsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+// ──────────────────────────────────────────────
+// Helper route for Connect Services
+// ──────────────────────────────────────────────
+class _ConnectServicesRoute extends StatelessWidget {
+  const _ConnectServicesRoute();
+  @override
+  Widget build(BuildContext context) {
+    return const ConnectScreen();
+  }
+}
+
+// ──────────────────────────────────────────────
+// Dialog helpers
+// ──────────────────────────────────────────────
+void _showEqDialog(BuildContext context, StorageService storage) {
+  const presets = ['Normal', 'Bass Boost', 'Treble Boost', 'Rock', 'Pop', 'Jazz', 'Classical', 'Electronic', 'Vocal', 'Flat'];
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 16),
+        Text('EQ Preset', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        ...presets.map((p) => ListTile(
+          title: Text(p, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          trailing: storage.eqPreset == p ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) : null,
+          onTap: () { storage.setEqPreset(p); Navigator.pop(context); },
+        )),
+        const SizedBox(height: 16),
+      ],
+    ),
+  );
+}
+
+void _showCrossfadeDialog(BuildContext context, StorageService storage) {
+  double val = storage.crossfadeDuration;
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: const Text('Crossfade Duration'),
+      content: StatefulBuilder(
+        builder: (context, setState) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${val.toStringAsFixed(0)} seconds', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Slider(
+              value: val,
+              min: 0,
+              max: 12,
+              divisions: 12,
+              label: '${val.toStringAsFixed(0)}s',
+              onChanged: (v) => setState(() => val = v),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () { storage.setCrossfadeDuration(val); Navigator.pop(context); },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+}
+
+void _showSleepTimerDialog(BuildContext context, StorageService storage) {
+  const options = [15, 30, 45, 60, 90, 120];
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Theme.of(context).colorScheme.surface,
+    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (_) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SizedBox(height: 16),
+        Text('Default Sleep Timer', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        ...options.map((m) => ListTile(
+          title: Text('$m minutes', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          trailing: storage.defaultSleepTimerMinutes == m ? Icon(Icons.check_circle_rounded, color: Theme.of(context).colorScheme.primary) : null,
+          onTap: () { storage.setDefaultSleepTimerMinutes(m); Navigator.pop(context); },
+        )),
+        const SizedBox(height: 16),
+      ],
+    ),
+  );
+}
+
+void _showClearDialog(BuildContext context, WidgetRef ref, String type) {
+  final label = type == 'history' ? 'listening history' : 'liked songs';
+  showDialog(
+    context: context,
+    builder: (_) => AlertDialog(
+      title: Text('Clear ${type == 'history' ? 'History' : 'Liked Songs'}'),
+      content: Text('Are you sure you want to clear your $label? This cannot be undone.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () async {
+            final storage = ref.read(storageServiceProvider);
+            if (type == 'history') {
+              await storage.clearHistory();
+            } else {
+              await storage.clearFavorites();
+            }
+            if (context.mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('${type == 'history' ? 'History' : 'Liked songs'} cleared'), duration: const Duration(seconds: 2)),
+              );
+            }
+          },
+          child: const Text('Clear', style: TextStyle(color: Colors.white)),
+        ),
+      ],
+    ),
+  );
 }
 
 class _DiagonalSplitPainter extends CustomPainter {

@@ -338,6 +338,11 @@ class StorageService {
     return _favoritesNotifier.value.any((s) => s.videoId == videoId);
   }
 
+  Future<void> clearFavorites() async {
+    _favoritesNotifier.value = [];
+    await _saveFavoritesToCache([]);
+  }
+
   Future<void> toggleFavorite(MuzoItem result) async {
     isLoadingNotifier.value = true;
     final current = List<MuzoItem>.from(_favoritesNotifier.value);
@@ -619,6 +624,64 @@ class StorageService {
   bool get hasSeenSpotifyAnnouncement => _settingsBox.get('hasSeenSpotifyAnnouncement', defaultValue: false);
   Future<void> setHasSeenSpotifyAnnouncement(bool value) async {
     await _settingsBox.put('hasSeenSpotifyAnnouncement', value);
+  }
+
+  // YouTube Music Cookie
+  String? get ytmCookie => _settingsBox.get('ytmCookie');
+  Future<void> setYtmCookie(String? value) async {
+    if (value == null || value.isEmpty) {
+      await _settingsBox.delete('ytmCookie');
+    } else {
+      await _settingsBox.put('ytmCookie', value);
+    }
+  }
+
+  // Spotify Connected
+  bool get isSpotifyConnected => _settingsBox.get('isSpotifyConnected', defaultValue: false);
+  Future<void> setSpotifyConnected(bool value) async {
+    await _settingsBox.put('isSpotifyConnected', value);
+  }
+
+  // English-only filter
+  bool get englishOnlyMode => _settingsBox.get('englishOnlyMode', defaultValue: true);
+  Future<void> setEnglishOnlyMode(bool value) async {
+    await _settingsBox.put('englishOnlyMode', value);
+  }
+
+  // Crossfade duration (seconds)
+  double get crossfadeDuration => _settingsBox.get('crossfadeDuration', defaultValue: 0.0);
+  Future<void> setCrossfadeDuration(double value) async {
+    await _settingsBox.put('crossfadeDuration', value);
+  }
+
+  // Sleep timer fallback setting (minutes)
+  int get defaultSleepTimerMinutes => _settingsBox.get('defaultSleepTimerMinutes', defaultValue: 30);
+  Future<void> setDefaultSleepTimerMinutes(int value) async {
+    await _settingsBox.put('defaultSleepTimerMinutes', value);
+  }
+
+  // Notification style (simple/rich)
+  bool get richNotifications => _settingsBox.get('richNotifications', defaultValue: true);
+  Future<void> setRichNotifications(bool value) async {
+    await _settingsBox.put('richNotifications', value);
+  }
+
+  // Equalizer preset
+  String get eqPreset => _settingsBox.get('eqPreset', defaultValue: 'Normal');
+  Future<void> setEqPreset(String value) async {
+    await _settingsBox.put('eqPreset', value);
+  }
+
+  // Data saver
+  bool get dataSaverMode => _settingsBox.get('dataSaverMode', defaultValue: false);
+  Future<void> setDataSaverMode(bool value) async {
+    await _settingsBox.put('dataSaverMode', value);
+  }
+
+  // Shuffle on startup
+  bool get shuffleOnStartup => _settingsBox.get('shuffleOnStartup', defaultValue: false);
+  Future<void> setShuffleOnStartup(bool value) async {
+    await _settingsBox.put('shuffleOnStartup', value);
   }
 
   // Cache Helpers

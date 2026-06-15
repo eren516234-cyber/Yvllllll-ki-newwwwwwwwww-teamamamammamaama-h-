@@ -43,8 +43,15 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
   }
 
   Future<void> _fetchLyrics(MediaItem mediaItem) async {
-    if (_lyrics != null && _lastFetchedTitle == mediaItem.title) return;
     if (_isLoadingLyrics) return;
+    // Reset if different song
+    if (_lastFetchedTitle != mediaItem.title) {
+      setState(() {
+        _lyrics = null;
+        _lastFetchedTitle = null;
+      });
+    }
+    if (_lyrics != null && _lastFetchedTitle == mediaItem.title) return;
 
     setState(() => _isLoadingLyrics = true);
 
@@ -72,17 +79,29 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
     }
   }
 
+  void _closeLyrics() {
+    setState(() => _showLyrics = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaItemAsync = ref.watch(currentMediaItemProvider);
     final audioHandler = ref.watch(audioHandlerProvider);
 
+    // Auto-prefetch lyrics when song changes (even when lyrics pane is closed)
     ref.listen(currentMediaItemProvider, (previous, next) {
       next.whenData((mediaItem) {
-        if (mediaItem != null &&
-            mediaItem.title != _lastFetchedTitle &&
-            _showLyrics) {
+        if (mediaItem == null) return;
+        if (mediaItem.title != _lastFetchedTitle && !_isLoadingLyrics) {
+          // Pre-fetch in background so lyrics appear instantly when opened
           _fetchLyrics(mediaItem);
+          // Also auto-show if already in lyrics mode
+          if (_showLyrics) {
+            setState(() {
+              _lyrics = null;
+              _lastFetchedTitle = null;
+            });
+          }
         }
       });
     });
@@ -102,204 +121,223 @@ class _AlbumArtNLyricsState extends ConsumerState<AlbumArtNLyrics>
           }
         },
         child: AnimatedContainer(
-        duration: const Duration(milliseconds: 420),
-        curve: Curves.easeOutCubic,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.12),
-            width: 1,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black54,
-              blurRadius: 40,
-              offset: Offset(0, 20),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.12),
+              width: 1,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: Stack(
-            children: [
-              // Album Art
-              mediaItemAsync.when(
-                data: (mediaItem) {
-                  if (mediaItem?.artUri == null) {
-                    return Container(color: Colors.grey[900]);
-                  }
-                  return AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 500),
-                    child: CachedNetworkImage(
-                      key: ValueKey(mediaItem!.artUri.toString()),
-                      imageUrl: mediaItem.artUri.toString().replaceAll(
-                        RegExp(r'w\d+-h\d+'),
-                        'w800-h800',
-                      ),
-                      fit: BoxFit.cover,
-                      width: widget.playerArtImageSize,
-                      height: widget.playerArtImageSize,
-                      errorWidget: (context, url, error) => Icon(
-                        Icons.music_note,
-                        size: 50,
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  );
-                },
-                loading: () => Container(color: Colors.grey[900]),
-                error: (_, __) => Container(
-                  color: Colors.grey[900],
-                  child: const Icon(Icons.error),
-                ),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black54,
+                blurRadius: 40,
+                offset: Offset(0, 20),
               ),
-
-              // Lyrics Overlay with smooth fade
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 400),
-                child: _showLyrics
-                    ? Positioned.fill(
-                        key: const ValueKey('lyrics'),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(28),
-                          child: BackdropFilter(
-                            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-                            child: Container(
-                              color:
-                                  (Theme.of(context).brightness == Brightness.dark
-                                          ? Colors.black
-                                          : Colors.white)
-                                      .withValues(alpha: 0.48),
-                              child: _isLoadingLyrics
-                                  ? Center(
-                                      child: Text(
-                                        'Lyrics loading...',
-                                        style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.8),
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    )
-                                  : _lyrics == null
-                                  ? Center(
-                                      child: Text(
-                                        "No lyrics found",
-                                        style: TextStyle(
-                                          color: Theme.of(context).colorScheme.onSurface,
-                                        ),
-                                      ),
-                                    )
-                                  : LyricsView(
-                                      lyrics: _lyrics!,
-                                      onClose: () =>
-                                          setState(() => _showLyrics = false),
-                                      positionStream:
-                                          audioHandler.player.positionStream,
-                                      totalDuration:
-                                          audioHandler.player.duration ??
-                                          Duration.zero,
-                                      isEmbedded: true,
-                                      accentColor:
-                                          ref
-                                              .watch(currentPaletteProvider)
-                                              .asData
-                                              ?.value
-                                              ?.darkVibrantColor
-                                              ?.color ??
-                                          Colors.white,
-                                    ),
-                            ),
-                          ),
-                        ),
-                      )
-                    : const SizedBox.shrink(key: ValueKey('no-lyrics')),
-              ),
-
-              // Lyrics Button (hide when lyrics are shown)
-              if (!_showLyrics)
-                Positioned(
-                  bottom: 14,
-                  right: 14,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () {
-                              final mediaItem = mediaItemAsync.value;
-                              if (mediaItem != null) {
-                                setState(() => _showLyrics = true);
-                                _fetchLyrics(mediaItem);
-                              }
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    FluentIcons.text_quote_20_filled,
-                                    color: Theme.of(context).colorScheme.onSurface,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Lyrics",
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.onSurface,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              if (_showLyrics)
-                Positioned(
-                  top: 14,
-                  right: 14,
-                  child: _GlassLyricButton(
-                    icon: FluentIcons.arrow_sync_20_filled,
-                    label: 'Re-sync',
-                    onTap: () {
-                      // Re-fetch lyrics without touching playback position
-                      setState(() {
-                        _lyrics = null;
-                        _lastFetchedTitle = null;
-                        _isLoadingLyrics = false;
-                      });
-                      final mediaItem = mediaItemAsync.value;
-                      if (mediaItem != null) {
-                        _fetchLyrics(mediaItem);
-                      }
-                    },
-                  ),
-                ),
             ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Stack(
+              children: [
+                // Album Art
+                mediaItemAsync.when(
+                  data: (mediaItem) {
+                    if (mediaItem?.artUri == null) {
+                      return Container(color: Colors.grey[900]);
+                    }
+                    return AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 500),
+                      child: CachedNetworkImage(
+                        key: ValueKey(mediaItem!.artUri.toString()),
+                        imageUrl: mediaItem.artUri.toString().replaceAll(
+                          RegExp(r'w\d+-h\d+'),
+                          'w800-h800',
+                        ),
+                        fit: BoxFit.cover,
+                        width: widget.playerArtImageSize,
+                        height: widget.playerArtImageSize,
+                        errorWidget: (context, url, error) => Icon(
+                          Icons.music_note,
+                          size: 50,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    );
+                  },
+                  loading: () => Container(color: Colors.grey[900]),
+                  error: (_, __) => Container(
+                    color: Colors.grey[900],
+                    child: const Icon(Icons.error),
+                  ),
+                ),
+
+                // Lyrics Overlay with smooth fade
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  child: _showLyrics
+                      ? Positioned.fill(
+                          key: const ValueKey('lyrics'),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(28),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                              child: Container(
+                                color:
+                                    (Theme.of(context).brightness == Brightness.dark
+                                            ? Colors.black
+                                            : Colors.white)
+                                        .withValues(alpha: 0.55),
+                                child: _isLoadingLyrics
+                                    ? Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            SizedBox(
+                                              width: 24, height: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.5,
+                                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 12),
+                                            Text(
+                                              'Finding lyrics...',
+                                              style: TextStyle(
+                                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : _lyrics == null
+                                    ? Center(
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              FluentIcons.text_quote_20_regular,
+                                              size: 36,
+                                              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              "No lyrics found",
+                                              style: TextStyle(
+                                                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            TextButton(
+                                              onPressed: () {
+                                                final mi = mediaItemAsync.value;
+                                                if (mi != null) {
+                                                  setState(() {
+                                                    _lyrics = null;
+                                                    _lastFetchedTitle = null;
+                                                  });
+                                                  _fetchLyrics(mi);
+                                                }
+                                              },
+                                              child: Text(
+                                                'Retry',
+                                                style: TextStyle(
+                                                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      )
+                                    : LyricsView(
+                                        lyrics: _lyrics!,
+                                        onClose: _closeLyrics,
+                                        positionStream:
+                                            audioHandler.player.positionStream,
+                                        totalDuration:
+                                            audioHandler.player.duration ??
+                                            Duration.zero,
+                                        isEmbedded: true,
+                                        accentColor:
+                                            ref
+                                                .watch(currentPaletteProvider)
+                                                .asData
+                                                ?.value
+                                                ?.darkVibrantColor
+                                                ?.color ??
+                                            Colors.white,
+                                      ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(key: ValueKey('no-lyrics')),
+                ),
+
+                // Lyrics Button (shown when lyrics hidden)
+                if (!_showLyrics)
+                  Positioned(
+                    bottom: 14,
+                    right: 14,
+                    child: _GlassLyricButton(
+                      icon: FluentIcons.text_quote_20_filled,
+                      label: _isLoadingLyrics ? 'Loading...' : 'Lyrics',
+                      onTap: () {
+                        final mediaItem = mediaItemAsync.value;
+                        if (mediaItem != null) {
+                          setState(() => _showLyrics = true);
+                          if (_lyrics == null && !_isLoadingLyrics) {
+                            _fetchLyrics(mediaItem);
+                          }
+                        }
+                      },
+                    ),
+                  ),
+
+                // Close button (shown when lyrics visible)
+                if (_showLyrics)
+                  Positioned(
+                    top: 14,
+                    right: 14,
+                    child: _GlassLyricButton(
+                      icon: FluentIcons.dismiss_20_filled,
+                      label: 'Close',
+                      onTap: _closeLyrics,
+                    ),
+                  ),
+
+                // Re-sync button (shown when lyrics visible, bottom-right)
+                if (_showLyrics && _lyrics != null)
+                  Positioned(
+                    top: 14,
+                    left: 14,
+                    child: _GlassLyricButton(
+                      icon: FluentIcons.arrow_sync_20_filled,
+                      label: 'Re-sync',
+                      onTap: () {
+                        setState(() {
+                          _lyrics = null;
+                          _lastFetchedTitle = null;
+                          _isLoadingLyrics = false;
+                        });
+                        final mediaItem = mediaItemAsync.value;
+                        if (mediaItem != null) {
+                          _fetchLyrics(mediaItem);
+                        }
+                      },
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 }
 
@@ -325,9 +363,13 @@ class _GlassLyricButton extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, color: Theme.of(context).colorScheme.onSurface, size: 16),
+                  Icon(icon, color: Theme.of(context).colorScheme.onSurface, size: 15),
                   const SizedBox(width: 6),
-                  Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w800, fontSize: 12)),
+                  Text(label, style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  )),
                 ],
               ),
             ),
